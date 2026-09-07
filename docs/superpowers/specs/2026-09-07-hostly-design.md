@@ -57,7 +57,7 @@ One process serves everything. The built React app is embedded via `go:embed` an
 - `venue_id`
 - `name` (string)
 - `pax` (int)
-- `status` (`waiting` | `seated` | `left` | `cancelled`)
+- `status` (`waiting` | `seated` | `left`)
 - `note` (string, optional)
 - `order` (int, monotonic sort key unique within the venue; lower = earlier in line)
 - `created_at`
@@ -77,7 +77,7 @@ One process serves everything. The built React app is embedded via `go:embed` an
 | GET | `/api/venues/{slug}/staff?token=…` | Staff data: full party list with statuses, contact info, hours, override |
 | PATCH | `/api/venues/{slug}/parties/{id}` | Edit pax / note (staff) |
 | POST | `/api/venues/{slug}/parties/{id}/seat` | Mark seated (staff) |
-| POST | `/api/venues/{slug}/parties/{id}/leave` | Mark left / cancelled (staff) |
+| POST | `/api/venues/{slug}/parties/{id}/leave` | Mark left / removed (staff) |
 | POST | `/api/venues/{slug}/parties/{id}/top` | Fast-track to front (staff) |
 | PATCH | `/api/venues/{slug}/hours` | Set open/close time and override (staff) |
 | WS   | `/api/venues/{slug}/ws` | Live events: party joined, seated, left, edited, reordered, hours changed |
@@ -98,7 +98,7 @@ Routes:
 
 ### Staff dashboard (light theme)
 
-- Queue list: each waiting party shows name, pax, note, time waiting, position. Row actions: Seat, Marked left/cancelled, Edit pax/note, Move to top.
+- Queue list: each waiting party shows name, pax, note, time waiting, position. Row actions: Seat, Mark left/removed, Edit pax/note, Move to top.
 - Stats bar: parties waiting now, seated so far today.
 - Hours panel: edit open/close time; override switch (Auto / Force Open / Force Closed).
 
