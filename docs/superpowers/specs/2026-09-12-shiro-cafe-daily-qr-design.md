@@ -75,8 +75,15 @@ HTTP **410 Gone** for the join endpoint.
   `key = hex(sha256(DailySecret + ":" + D))[:16]`
 - Deterministic per (venue, secret, date): stable across restarts, changes
   automatically when the date flips, no per-day storage.
-- Customer queue link: `{base}/q/{slug}?d={D}&k={key}`.
-- QR encodes exactly that link.
+- Customer queue link (app-internal form): `{base}/q/{slug}?d={D}&k={key}`
+  (served under `BASE_PATH`).
+- **QR encodes an ABSOLUTE URL** built at render time from the request
+  `Host`/`X-Forwarded-Host` (+ `X-Forwarded-Proto`, defaulting to `https` on
+  forwarded requests, else `http`) plus `BASE_PATH` plus the internal link —
+  e.g. `https://shiro.example.com/q/shiro-cafe?d=2026-09-12&k=3f9a…`. A phone
+  scanning the QR must land on a working web address, not a relative path.
+- The `qrcode.link` field in staff view stays RELATIVE (the SPA makes it
+  absolute when copying); only the QR payload is absolute.
 - "Regenerate" replaces `DailySecret` with a fresh random value: the current
   day's key changes and any leaked current link dies immediately; future days
   derive from the new secret automatically.
