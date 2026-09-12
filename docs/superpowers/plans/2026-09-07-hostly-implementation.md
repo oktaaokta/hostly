@@ -513,7 +513,7 @@ func TestJoinValidation(t *testing.T) {
 func TestJoinDuplicate(t *testing.T) {
 	m := repository.NewMemory()
 	_ = openVenue(t, m)
-	q := NewQueue(m.Venues(), m.Parties(), time.Now)
+	q := NewQueue(m.Venues(), m.Parties(), func() time.Time { return time.Date(2026, 9, 7, 12, 0, 0, 0, time.UTC) })
 
 	if _, err := q.Join("joes", "Alex", 2, ""); err != nil {
 		t.Fatal(err)
@@ -545,7 +545,6 @@ Expected: FAIL — no package / undefined `NewQueue`.
 package usecase
 
 import (
-	"fmt"
 	"strings"
 	"time"
 
@@ -572,7 +571,7 @@ type JoinResult struct {
 func (q *Queue) Join(slug, name string, pax int, note string) (*JoinResult, error) {
 	name = strings.TrimSpace(name)
 	if name == "" || pax < 1 || pax > 20 {
-		return nil, fmt.Errorf("%w: name is required and pax must be 1-20", domain.ErrInvalid)
+		return nil, domain.ErrInvalid
 	}
 	ven, err := q.ven.GetBySlug(slug)
 	if err != nil {
