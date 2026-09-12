@@ -11,12 +11,27 @@ export default function StaffPage({ slug, token }: { slug: string; token: string
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<number | null>(null);
   const [save, setSave] = useState<string | null>(null);
+  const [open, setOpen] = useState('');
+  const [close, setClose] = useState('');
+  const [overrideMode, setOverrideMode] = useState('auto');
+  const [busy, setBusy] = useState(false);
+
+  const venueV = data?.venue;
+  useEffect(() => {
+    if (!venueV) return;
+    setOpen(venueV.open_time);
+    setClose(venueV.close_time);
+    setOverrideMode(venueV.open_override ?? 'auto');
+  }, [venueV?.open_time, venueV?.close_time, venueV?.open_override]);
 
   const reload = useCallback(() => {
     if (!token) return;
     api
       .staffView(token)
-      .then(setData)
+      .then((d) => {
+        setData(d);
+        setError(null);
+      })
       .catch((e: Error) => setError(e.message));
   }, [api, token]);
 
@@ -55,24 +70,23 @@ export default function StaffPage({ slug, token }: { slug: string; token: string
   const v = data.venue;
 
   async function run(fn: () => Promise<unknown>) {
+    if (busy) return;
+    setBusy(true);
     setSave(null);
     try {
       await fn();
       await reload();
     } catch (e) {
       setSave(e instanceof Error ? e.message : 'Action failed');
+    } finally {
+      setBusy(false);
     }
   }
 
   const submitHours = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const f = e.currentTarget;
-    const fd = new FormData(f);
-    const override = fd.get('override') === 'auto' ? null : String(fd.get('override'));
-    run(() => api.hours(token, String(fd.get('open')), String(fd.get('close')), override));
+    run(() => api.hours(token, open, close, overrideMode === 'auto' ? null : overrideMode));
   };
-
-  const mode = v.open_override ?? 'auto';
 
   const waiting = data.parties.filter((p) => p.status === 'waiting');
   const settled = data.parties.filter((p) => p.status !== 'waiting');
@@ -140,18 +154,18 @@ export default function StaffPage({ slug, token }: { slug: string; token: string
         <form onSubmit={submitHours}>
           <div className="hours-row">
             <div>
-              <label>Opens</label>
-              <input name="open" type="time" defaultValue={v.open_time} />
+              <label htmlFor="open">Opens</label>
+              <input id="open" name="open" type="time" value={open} onChange={(e) => setOpen(e.target.value)} />
             </div>
             <div>
-              <label>Closes</label>
-              <input name="close" type="time" defaultValue={v.close_time} />
+              <label htmlFor="close">Closes</label>
+              <input id="close" name="close" type="time" value={close} onChange={(e) => setClose(e.target.value)} />
             </div>
           </div>
           <div className="overrides">
             {(['auto', 'open', 'closed'] as const).map((m) => (
-              <label key={m} className={mode === m ? 'picked' : ''}>
-                <input type="radio" name="override" value={m} defaultChecked={mode === m} />
+              <label key={m} className={overrideMode === m ? 'picked' : ''}>
+                <input type="radio" name="override" value={m} checked={overrideMode === m} onChange={() => setOverrideMode(m)} />
                 {m === 'auto' ? 'Follow schedule' : m === 'open' ? 'Force open' : 'Force closed'}
               </label>
             ))}
