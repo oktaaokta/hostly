@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/gorilla/websocket"
 	"github.com/oktaaokta/hostly/internal/domain"
 	"github.com/oktaaokta/hostly/internal/repository"
 	"github.com/oktaaokta/hostly/internal/usecase"
@@ -124,5 +126,55 @@ func TestStaffSeatFlow(t *testing.T) {
 	json.NewDecoder(get.Body).Decode(&cv)
 	if !cv.IsOpen || cv.WaitingCount != 0 {
 		t.Errorf("customer view after seat = %+v", cv)
+	}
+}
+
+func TestWebSocketBroadcast(t *testing.T) {
+	ts := newTestServer(t)
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/api/venues/joes/ws"
+	conn, resp, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	defer conn.Close()
+	conn.SetReadDeadline(time.Now().Add(3 * time.Second))
+
+	join := post(t, ts, "/api/venues/joes/parties", map[string]any{"name": "Wes", "pax": 2})
+	if join.StatusCode != http.StatusCreated {
+		t.Fatalf("join status = %d", join.StatusCode)
+	}
+	var jr struct {
+		Party struct {
+			ID int64 `json:"id"`
+		} `json:"party"`
+	}
+	json.NewDecoder(join.Body).Decode(&jr)
+	join.Body.Close()
+
+	_, data, err := conn.ReadMessage()
+	if err != nil {
+		t.Fatalf("ws read: %v", err)
+	}
+	var ev struct {
+		Type string `json:"type"`
+	}
+	if err := json.Unmarshal(data, &ev); err != nil {
+		t.Fatal(err)
+	}
+	if ev.Type != "party_joined" {
+		t.Errorf("ws type = %q, want party_joined", ev.Type)
+	}
+
+	conn.Close()
+
+	path := fmt.Sprintf("/api/venues/joes/parties/%d/seat?token=tok", jr.Party.ID)
+	seatResp, err := http.Post(ts.URL+path, "application/json", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer seatResp.Body.Close()
+	if seatResp.StatusCode != http.StatusOK {
+		t.Errorf("seat status after ws close = %d", seatResp.StatusCode)
 	}
 }

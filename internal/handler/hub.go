@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"sync"
+	"time"
 
 	"github.com/gorilla/websocket"
 )
@@ -41,7 +42,8 @@ func (h *Hub) remove(venueID int64, c *websocket.Conn) {
 	}
 }
 
-// Broadcast marshals ev and writes it to every connection in the room.
+// Broadcast marshals ev and writes it to every connection in the room. A write
+// deadline caps each send so one dead client can't stall the room forever.
 func (h *Hub) Broadcast(venueID int64, ev any) {
 	data, err := json.Marshal(ev)
 	if err != nil {
@@ -50,6 +52,7 @@ func (h *Hub) Broadcast(venueID int64, ev any) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	for c := range h.rooms[venueID] {
+		c.SetWriteDeadline(time.Now().Add(5 * time.Second))
 		if err := c.WriteMessage(websocket.TextMessage, data); err != nil {
 			c.Close()
 			delete(h.rooms[venueID], c)
