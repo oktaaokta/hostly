@@ -99,7 +99,7 @@ func (v Venue) IsOpen(now time.Time) bool {
 	if err1 != nil || err2 != nil || err3 != nil {
 		return false
 	}
-	return cur.After(open) && cur.Before(close)
+	return !cur.Before(open) && cur.Before(close)
 }
 
 func (v Venue) IsValid() error {
@@ -185,7 +185,7 @@ func TestVenueIsOpenSchedule(t *testing.T) {
 		want bool
 	}{
 		{closedAt(9, 59), false},
-		{closedAt(10, 0), false}, // [open, close)
+		{closedAt(10, 0), true}, // [open, close): opening minute is open
 		{closedAt(12, 0), true},
 		{closedAt(21, 59), true},
 		{closedAt(22, 0), false},
