@@ -2416,7 +2416,7 @@ export default function CustomerPage({ slug }: { slug: string }) {
       {joined ? (
         <div className="card body-width">
           <p className="venue-name">{view?.venue.name ?? slug}</p>
-          <h1 className="hero">{mine ? `${ahead + 1}` : seated ? 'Enjoy!' : '—'}</h1>
+          <h1 className="hero">{mine ? `${(ahead ?? 0) + 1}` : seated ? 'Enjoy!' : '—'}</h1>
           <p className="sub">
             {mine
               ? ahead === 0
