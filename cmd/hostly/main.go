@@ -66,6 +66,7 @@ func serveSPA(w http.ResponseWriter, r *http.Request) {
 	}
 	b, err := webassets.Dist.ReadFile("dist/" + path)
 	if err != nil {
+		path = "index.html" // Content-Type below must match the served file
 		b, err = webassets.Dist.ReadFile("dist/index.html")
 		if err != nil {
 			http.Error(w, "not found", http.StatusNotFound)

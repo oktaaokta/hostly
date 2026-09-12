@@ -3,7 +3,12 @@ PORT ?= 8080
 DB_PATH ?= hostly.db
 BIN ?= bin/hostly
 
-.PHONY: run demo test lint build frontend clean
+.PHONY: run demo test lint dist-check build frontend clean
+
+dist-check:
+	@test -d internal/webassets/dist || { echo "built SPA missing — run 'make frontend'"; exit 1; }
+
+run demo test lint: dist-check
 
 run:
 	PORT=$(PORT) DB_PATH=$(DB_PATH) go run ./cmd/hostly
