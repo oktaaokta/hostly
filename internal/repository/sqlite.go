@@ -2,7 +2,6 @@ package repository
 
 import (
 	"database/sql"
-	"fmt"
 	"strings"
 	"time"
 
@@ -100,7 +99,8 @@ func migrate(db *sql.DB) error {
 		return err
 	}
 	type vsec struct {
-		id, sec string
+		id  int64
+		sec string
 	}
 	var need []vsec
 	for rows.Next() {
@@ -111,7 +111,7 @@ func migrate(db *sql.DB) error {
 			return err
 		}
 		if sec == "" {
-			need = append(need, vsec{fmt.Sprint(id), domain.GenerateSecret()})
+			need = append(need, vsec{id, domain.GenerateSecret()})
 		}
 	}
 	rows.Close()

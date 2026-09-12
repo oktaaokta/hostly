@@ -181,6 +181,30 @@ func TestSQLiteMigrationAddsColumnsAndBackfills(t *testing.T) {
 	if got.Email != "r@x.com" {
 		t.Errorf("party insert after migration = %+v", got)
 	}
+	secret := ven.DailySecret
+	db.Close()
+
+	db2, err := OpenSQLite(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db2.Close() })
+	ven2, err := db2.Venues().GetBySlug("a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ven2.DailySecret != secret {
+		t.Fatalf("reopen regenerated secret: %q != %q", ven2.DailySecret, secret)
+	}
+
+	p2 := &domain.Party{VenueID: ven.ID, Name: "Sam", Pax: 1, Status: domain.PartyWaiting, Order: 2, Email: "s@x.com"}
+	if err := db2.Parties().Create(p2); err != nil {
+		t.Fatal(err)
+	}
+	got2, _ := db2.Parties().Get(p2.ID)
+	if got2.Email != "s@x.com" {
+		t.Errorf("party insert after reopen = %+v", got2)
+	}
 }
 
 func TestSQLitePartyNotFound(t *testing.T) {
