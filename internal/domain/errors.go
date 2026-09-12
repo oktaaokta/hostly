@@ -9,4 +9,5 @@ var (
 	ErrNotWaiting   = errors.New("party is not waiting")
 	ErrUnauthorized = errors.New("unauthorized")
 	ErrInvalid      = errors.New("invalid input")
+	ErrStale        = errors.New("this link only works on the day it was printed")
 )

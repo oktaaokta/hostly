@@ -15,6 +15,7 @@ type Venue struct {
 	CloseTime    string  `json:"close_time"` // "15:04"
 	OpenOverride *string `json:"open_override"`
 	StaffToken   string  `json:"-"`
+	DailySecret  string  `json:"-"`
 }
 
 // TokenOK compares tokens in constant time to avoid timing leaks on the
