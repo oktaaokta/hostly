@@ -648,7 +648,7 @@ func mustJoin(t *testing.T, q *Queue, slug, name string, pax int) *domain.Party 
 func TestSeatLeaveTopEditHours(t *testing.T) {
 	m := repository.NewMemory()
 	ven := openVenue(t, m)
-	q := NewQueue(m.Venues(), m.Parties(), time.Now)
+	q := NewQueue(m.Venues(), m.Parties(), func() time.Time { return time.Date(2026, 9, 7, 12, 0, 0, 0, time.UTC) })
 
 	a := mustJoin(t, q, ven.Slug, "Alex", 2)
 	b := mustJoin(t, q, ven.Slug, "Bea", 4)
@@ -668,8 +668,15 @@ func TestSeatLeaveTopEditHours(t *testing.T) {
 	if view.Stats.Waiting != 1 || view.Stats.SeatedToday != 1 {
 		t.Errorf("stats after seat = %+v", view.Stats)
 	}
-	if view.Parties[0].ID != b.ID {
-		t.Errorf("front of queue after seat = %d", view.Parties[0].ID)
+	firstWaiting := int64(-1)
+	for _, p := range view.Parties {
+		if p.Status == domain.PartyWaiting {
+			firstWaiting = p.ID
+			break
+		}
+	}
+	if firstWaiting != b.ID {
+		t.Errorf("front of queue after seat = %d, want %d", firstWaiting, b.ID)
 	}
 
 	if err := q.Leave(ven.Slug, "tok", b.ID); err != nil {
@@ -824,7 +831,10 @@ func (q *Queue) Leave(slug, token string, partyID int64) error {
 	return q.seatOrLeave(slug, token, partyID, domain.PartyLeft)
 }
 
-// Top fast-tracks a waiting party to the front. All others keep relative order.
+// Top fast-tracks a waiting party ahead of every party still in the venue.
+// The new order is (minimum order over ALL parties) - 1, so it can never
+// collide with an existing order (orders are unique per venue) and the topped
+// party is strictly before every other party, seated or waiting.
 func (q *Queue) Top(slug, token string, partyID int64) error {
 	venue, err := q.fetchAuthorized(slug, token)
 	if err != nil {
@@ -847,7 +857,7 @@ func (q *Queue) Top(slug, token string, partyID int64) error {
 	minOrder := 0
 	first := true
 	for _, x := range list {
-		if x.Status == domain.PartyWaiting && (first || x.Order < minOrder) {
+		if first || x.Order < minOrder {
 			minOrder = x.Order
 			first = false
 		}
