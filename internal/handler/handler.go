@@ -75,9 +75,11 @@ func (h *Handler) getCustomerView(w http.ResponseWriter, r *http.Request) {
 }
 
 type joinRequest struct {
-	Name string `json:"name"`
-	Pax  int    `json:"pax"`
-	Note string `json:"note"`
+	Name  string `json:"name"`
+	Pax   int    `json:"pax"`
+	Note  string `json:"note"`
+	Email string `json:"email"`
+	Phone string `json:"phone"`
 }
 
 func (h *Handler) join(w http.ResponseWriter, r *http.Request) {
@@ -87,7 +89,8 @@ func (h *Handler) join(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, domain.ErrInvalid)
 		return
 	}
-	res, err := h.us.Join(slug, body.Name, body.Pax, body.Note)
+	res, err := h.us.Join(slug, body.Name, body.Pax, body.Note, body.Email, body.Phone,
+		r.URL.Query().Get("k"), r.URL.Query().Get("d"))
 	if err != nil {
 		writeErr(w, err)
 		return

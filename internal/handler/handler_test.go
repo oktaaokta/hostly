@@ -20,7 +20,7 @@ import (
 func newTestServer(t *testing.T) *httptest.Server {
 	t.Helper()
 	m := repository.NewMemory()
-	ven := &domain.Venue{Slug: "joes", Name: "Joe's", OpenTime: "10:00", CloseTime: "22:00", StaffToken: "tok"}
+	ven := &domain.Venue{Slug: "joes", Name: "Joe's", OpenTime: "10:00", CloseTime: "22:00", StaffToken: "tok", DailySecret: "testsecret"}
 	if err := m.Venues().Create(ven); err != nil {
 		t.Fatal(err)
 	}
@@ -31,6 +31,11 @@ func newTestServer(t *testing.T) *httptest.Server {
 	ts := httptest.NewServer(r)
 	t.Cleanup(ts.Close)
 	return ts
+}
+
+func joinQuery() string {
+	now := time.Date(2026, 9, 7, 12, 0, 0, 0, time.UTC)
+	return "?d=" + now.Format("2006-01-02") + "&k=" + domain.DailyKey("testsecret", now.Format("2006-01-02"))
 }
 
 func post(t *testing.T, ts *httptest.Server, path string, body any) *http.Response {
@@ -46,7 +51,7 @@ func post(t *testing.T, ts *httptest.Server, path string, body any) *http.Respon
 func TestJoinEndpoint(t *testing.T) {
 	ts := newTestServer(t)
 
-	resp := post(t, ts, "/api/venues/joes/parties", map[string]any{"name": "Alex", "pax": 2})
+	resp := post(t, ts, "/api/venues/joes/parties"+joinQuery(), map[string]any{"name": "Alex", "pax": 2, "email": "alex@x.com"})
 	if resp.StatusCode != http.StatusCreated {
 		t.Fatalf("status = %d", resp.StatusCode)
 	}
@@ -59,13 +64,13 @@ func TestJoinEndpoint(t *testing.T) {
 		t.Errorf("ahead = %v", got.Ahead)
 	}
 
-	resp = post(t, ts, "/api/venues/joes/parties", map[string]any{"name": "Alex", "pax": 2})
+	resp = post(t, ts, "/api/venues/joes/parties"+joinQuery(), map[string]any{"name": "Alex", "pax": 2, "email": "alex@x.com"})
 	if resp.StatusCode != http.StatusConflict {
 		t.Errorf("duplicate status = %d", resp.StatusCode)
 	}
 	resp.Body.Close()
 
-	resp = post(t, ts, "/api/venues/joes/parties", map[string]any{"name": "", "pax": 2})
+	resp = post(t, ts, "/api/venues/joes/parties"+joinQuery(), map[string]any{"name": "", "pax": 2, "email": "alex@x.com"})
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("empty-name status = %d", resp.StatusCode)
 	}
@@ -95,7 +100,7 @@ func TestStaffAuthRequired(t *testing.T) {
 
 func TestStaffSeatFlow(t *testing.T) {
 	ts := newTestServer(t)
-	join := post(t, ts, "/api/venues/joes/parties", map[string]any{"name": "Bea", "pax": 4})
+	join := post(t, ts, "/api/venues/joes/parties"+joinQuery(), map[string]any{"name": "Bea", "pax": 4, "email": "bea@x.com"})
 	var jr struct {
 		Party struct {
 			ID int64 `json:"id"`
@@ -140,7 +145,7 @@ func TestWebSocketBroadcast(t *testing.T) {
 	defer conn.Close()
 	conn.SetReadDeadline(time.Now().Add(3 * time.Second))
 
-	join := post(t, ts, "/api/venues/joes/parties", map[string]any{"name": "Wes", "pax": 2})
+	join := post(t, ts, "/api/venues/joes/parties"+joinQuery(), map[string]any{"name": "Wes", "pax": 2, "email": "wes@x.com"})
 	if join.StatusCode != http.StatusCreated {
 		t.Fatalf("join status = %d", join.StatusCode)
 	}
