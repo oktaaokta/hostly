@@ -755,7 +755,7 @@ func (q *Queue) CustomerView(slug string) (*CustomerView, error) {
 	if err != nil {
 		return nil, err
 	}
-	out := &CustomerView{Venue: ven, IsOpen: ven.IsOpen(q.now())}
+	out := &CustomerView{Venue: ven, IsOpen: ven.IsOpen(q.now()), Waiting: []WaitingEntry{}}
 	for _, p := range list {
 		if p.Status == domain.PartyWaiting {
 			out.Waiting = append(out.Waiting, WaitingEntry{ID: p.ID, Name: p.Name, Pax: p.Pax, Order: p.Order})
