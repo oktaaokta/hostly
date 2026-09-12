@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -13,6 +14,7 @@ import (
 	"github.com/oktaaokta/hostly/internal/handler"
 	"github.com/oktaaokta/hostly/internal/repository"
 	"github.com/oktaaokta/hostly/internal/usecase"
+	"github.com/oktaaokta/hostly/internal/webassets"
 )
 
 func main() {
@@ -40,6 +42,7 @@ func main() {
 	r.Use(chimw.Logger)
 	r.Use(chimw.Recoverer)
 	h.RegisterRoutes(r)
+	r.NotFound(serveSPA)
 
 	addr := ":" + port
 	server := http.Handler(r)
@@ -48,6 +51,44 @@ func main() {
 	}
 	log.Printf("hostly listening on %s%s", addr, basePath)
 	log.Fatal(http.ListenAndServe(addr, server))
+}
+
+// serveSPA serves the embedded React app. Real files are served as-is; every
+// other path returns index.html so client-side routes (/q/..., /staff/...)
+// work on refresh and direct links.
+func serveSPA(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimPrefix(r.URL.Path, "/")
+	if path != "" && !strings.HasPrefix(path, "assets/") && !strings.HasSuffix(path, ".svg") && !strings.Contains(path, ".") {
+		path = "index.html"
+	}
+	if path == "" {
+		path = "index.html"
+	}
+	b, err := webassets.Dist.ReadFile("dist/" + path)
+	if err != nil {
+		b, err = webassets.Dist.ReadFile("dist/index.html")
+		if err != nil {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
+	}
+	w.Header().Set("Content-Type", mimeTypeByPath(path))
+	w.Write(b)
+}
+
+func mimeTypeByPath(path string) string {
+	switch {
+	case strings.HasSuffix(path, ".js"):
+		return "text/javascript"
+	case strings.HasSuffix(path, ".css"):
+		return "text/css"
+	case strings.HasSuffix(path, ".svg"):
+		return "image/svg+xml"
+	case strings.HasSuffix(path, ".png"):
+		return "image/png"
+	default:
+		return "text/html; charset=utf-8"
+	}
 }
 
 func seedVenue(vr domain.VenueRepository) {
