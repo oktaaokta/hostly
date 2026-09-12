@@ -107,7 +107,8 @@ func (r *memoryPartyRepo) Get(id int64) (*domain.Party, error) {
 	if !ok {
 		return nil, domain.ErrNotFound
 	}
-	return p, nil
+	cp := *p
+	return &cp, nil
 }
 
 func (r *memoryPartyRepo) ListByVenue(venueID int64) ([]domain.Party, error) {
