@@ -86,3 +86,87 @@ func TestJoinWhenClosed(t *testing.T) {
 		t.Errorf("closed venue err = %v", err)
 	}
 }
+
+func mustJoin(t *testing.T, q *Queue, slug, name string, pax int) *domain.Party {
+	t.Helper()
+	res, err := q.Join(slug, name, pax, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return res.Party
+}
+
+func TestSeatLeaveTopEditHours(t *testing.T) {
+	m := repository.NewMemory()
+	ven := openVenue(t, m)
+	q := NewQueue(m.Venues(), m.Parties(), func() time.Time { return time.Date(2026, 9, 7, 12, 0, 0, 0, time.UTC) })
+
+	a := mustJoin(t, q, ven.Slug, "Alex", 2)
+	b := mustJoin(t, q, ven.Slug, "Bea", 4)
+
+	if err := q.Seat(ven.Slug, "wrong", a.ID); err != domain.ErrUnauthorized {
+		t.Errorf("bad token err = %v", err)
+	}
+
+	if err := q.Seat(ven.Slug, "tok", a.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := q.Seat(ven.Slug, "tok", a.ID); err != domain.ErrNotWaiting {
+		t.Errorf("re-seat err = %v", err)
+	}
+
+	view, _ := q.StaffView(ven.Slug, "tok")
+	if view.Stats.Waiting != 1 || view.Stats.SeatedToday != 1 {
+		t.Errorf("stats after seat = %+v", view.Stats)
+	}
+	firstWaiting := int64(-1)
+	for _, p := range view.Parties {
+		if p.Status == domain.PartyWaiting {
+			firstWaiting = p.ID
+			break
+		}
+	}
+	if firstWaiting != b.ID {
+		t.Errorf("front of queue after seat = %d, want %d", firstWaiting, b.ID)
+	}
+
+	if err := q.Leave(ven.Slug, "tok", b.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := q.Leave(ven.Slug, "tok", b.ID); err != domain.ErrNotWaiting {
+		t.Errorf("double leave err = %v", err)
+	}
+
+	c := mustJoin(t, q, ven.Slug, "Cid", 2)
+	if err := q.Top(ven.Slug, "tok", c.ID); err != nil {
+		t.Fatal(err)
+	}
+	view2, _ := q.CustomerView(ven.Slug)
+	if len(view2.Waiting) != 1 || view2.Waiting[0].ID != c.ID {
+		t.Errorf("after top, front = %+v", view2.Waiting)
+	}
+	if view2.WaitingCount != 1 {
+		t.Errorf("waiting count = %d", view2.WaitingCount)
+	}
+
+	if err := q.EditParty(ven.Slug, "tok", c.ID, 5, "window seat"); err != nil {
+		t.Fatal(err)
+	}
+	if err := q.UpdateHours(ven.Slug, "tok", "11:00", "23:00", nil); err != nil {
+		t.Fatal(err)
+	}
+	info, _ := q.CustomerView(ven.Slug)
+	if info.Venue.OpenTime != "11:00" {
+		t.Errorf("open time = %s", info.Venue.OpenTime)
+	}
+	if info.Waiting[0].Pax != 5 {
+		t.Errorf("edited pax = %d", info.Waiting[0].Pax)
+	}
+
+	if _, err := q.StaffView(ven.Slug, "nope"); err != domain.ErrUnauthorized {
+		t.Errorf("staff bad token err = %v", err)
+	}
+	if _, err := q.StaffView("missing", "tok"); err != domain.ErrNotFound {
+		t.Errorf("staff missing venue err = %v", err)
+	}
+}
