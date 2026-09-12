@@ -17,6 +17,11 @@ func TestValidateContact(t *testing.T) {
 		{"", "12", true},
 		{"", "+62 812-3456 7890", false},
 		{"", "+6281234567890123456", true},
+		{"", "+", true},
+		{" @ ", "", true},
+		{"", "62 812", true},
+		{"", "   ", true},
+		{"", "++62812", true},
 	}
 	for _, c := range cases {
 		err := ValidateContact(c.email, c.phone)
