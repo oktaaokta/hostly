@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -168,5 +169,75 @@ func TestSeatLeaveTopEditHours(t *testing.T) {
 	}
 	if _, err := q.StaffView("missing", "tok"); err != domain.ErrNotFound {
 		t.Errorf("staff missing venue err = %v", err)
+	}
+}
+
+func TestJSONContractSnakeCaseRedactsToken(t *testing.T) {
+	m := repository.NewMemory()
+	ven := openVenue(t, m)
+	q := NewQueue(m.Venues(), m.Parties(), func() time.Time { return time.Date(2026, 9, 7, 12, 0, 0, 0, time.UTC) })
+
+	res, err := q.Join(ven.Slug, "Alex", 2, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	asMap := func(t *testing.T, b []byte) map[string]any {
+		t.Helper()
+		var out map[string]any
+		if err := json.Unmarshal(b, &out); err != nil {
+			t.Fatalf("unmarshal: %v\n%s", err, b)
+		}
+		return out
+	}
+
+	jr, err := json.Marshal(res)
+	if err != nil {
+		t.Fatal(err)
+	}
+	jm := asMap(t, jr)
+	if jm["ahead"] == nil || jm["party"] == nil {
+		t.Errorf("JoinResult keys = %v", jm)
+	}
+
+	cv, err := q.CustomerView(ven.Slug)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cb, err := json.Marshal(cv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cm := asMap(t, cb)
+	venueJSON, _ := cm["venue"].(map[string]any)
+	if venueJSON["open_time"] != "10:00" {
+		t.Errorf("venue open_time = %v (%s)", venueJSON["open_time"], cb)
+	}
+	if _, ok := venueJSON["staff_token"]; ok {
+		t.Errorf("venue leaks staff_token: %s", cb)
+	}
+	if _, ok := venueJSON["StaffToken"]; ok {
+		t.Errorf("venue leaks StaffToken: %s", cb)
+	}
+
+	sv, err := q.StaffView(ven.Slug, "tok")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sb, err := json.Marshal(sv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sm := asMap(t, sb)
+	if _, ok := sm["staff_token"]; ok {
+		t.Errorf("staff view leaks staff_token: %s", sb)
+	}
+	parties, _ := sm["parties"].([]any)
+	if len(parties) != 1 {
+		t.Fatalf("staff parties = %v", parties)
+	}
+	pjson, _ := parties[0].(map[string]any)
+	if pjson["created_at"] == nil || pjson["venue_id"] == nil {
+		t.Errorf("party JSON not snake_case: %s", sb)
 	}
 }

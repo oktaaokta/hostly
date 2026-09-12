@@ -19,8 +19,8 @@ func NewQueue(ven domain.VenueRepository, par domain.PartyRepository, now func()
 }
 
 type JoinResult struct {
-	Party *domain.Party
-	Ahead int
+	Party *domain.Party `json:"party"`
+	Ahead int           `json:"ahead"`
 }
 
 // Join validates input, checks the venue is open, guards against duplicate
@@ -71,6 +71,7 @@ func (q *Queue) VenueBySlug(slug string) (*domain.Venue, error) {
 	return q.ven.GetBySlug(slug)
 }
 
+// WaitingEntry is one waiting party shown to customers.
 type WaitingEntry struct {
 	ID    int64  `json:"id"`
 	Name  string `json:"name"`
@@ -78,6 +79,7 @@ type WaitingEntry struct {
 	Order int    `json:"order"`
 }
 
+// CustomerView is the public queue state customers see for a venue.
 type CustomerView struct {
 	Venue        *domain.Venue  `json:"venue"`
 	IsOpen       bool           `json:"is_open"`
@@ -105,11 +107,13 @@ func (q *Queue) CustomerView(slug string) (*CustomerView, error) {
 	return out, nil
 }
 
+// Stats summarizes a venue's queue for staff.
 type Stats struct {
 	Waiting     int `json:"waiting"`
 	SeatedToday int `json:"seated_today"`
 }
 
+// StaffView is the full queue state staff see, including seated/left parties.
 type StaffView struct {
 	Venue   *domain.Venue   `json:"venue"`
 	Parties []*domain.Party `json:"parties"`
@@ -211,7 +215,7 @@ func (q *Queue) Top(slug, token string, partyID int64) error {
 	return q.par.Update(p)
 }
 
-// EditParty updates a waiting party's size and note.
+// EditParty updates a party's size and note.
 func (q *Queue) EditParty(slug, token string, partyID int64, pax int, note string) error {
 	venue, err := q.fetchAuthorized(slug, token)
 	if err != nil {

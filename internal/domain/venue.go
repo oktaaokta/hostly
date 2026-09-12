@@ -8,13 +8,13 @@ import (
 // Venue is one restaurant. Hours are a single daily [open, close) window plus
 // an optional staff override (nil = follow schedule).
 type Venue struct {
-	ID           int64
-	Slug         string
-	Name         string
-	OpenTime     string // "15:04"
-	CloseTime    string // "15:04"
-	OpenOverride *string
-	StaffToken   string
+	ID           int64   `json:"id"`
+	Slug         string  `json:"slug"`
+	Name         string  `json:"name"`
+	OpenTime     string  `json:"open_time"`  // "15:04"
+	CloseTime    string  `json:"close_time"` // "15:04"
+	OpenOverride *string `json:"open_override"`
+	StaffToken   string  `json:"-"`
 }
 
 // TokenOK compares tokens in constant time to avoid timing leaks on the
