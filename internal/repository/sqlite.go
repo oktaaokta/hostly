@@ -1,0 +1,187 @@
+package repository
+
+import (
+	"database/sql"
+	"strings"
+	"time"
+
+	_ "modernc.org/sqlite"
+
+	"github.com/oktaaokta/hostly/internal/domain"
+)
+
+const schema = `
+CREATE TABLE IF NOT EXISTS venues (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	slug TEXT NOT NULL UNIQUE,
+	name TEXT NOT NULL,
+	open_time TEXT NOT NULL,
+	close_time TEXT NOT NULL,
+	open_override TEXT,
+	staff_token TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS parties (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	venue_id INTEGER NOT NULL REFERENCES venues(id),
+	name TEXT NOT NULL,
+	pax INTEGER NOT NULL,
+	note TEXT NOT NULL DEFAULT '',
+	status TEXT NOT NULL,
+	order_no INTEGER NOT NULL,
+	created_at TEXT NOT NULL,
+	UNIQUE(venue_id, order_no)
+);
+`
+
+type SQLite struct {
+	db        *sql.DB
+	venueRepo *sqliteVenueRepo
+	partyRepo *sqlitePartyRepo
+}
+
+// OpenSQLite opens (creating if needed) the SQLite database, applies the
+// schema, and returns a ready repository.
+func OpenSQLite(path string) (*SQLite, error) {
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		return nil, err
+	}
+	if err := db.Ping(); err != nil {
+		return nil, err
+	}
+	if _, err := db.Exec(schema); err != nil {
+		return nil, err
+	}
+	r := &SQLite{db: db}
+	r.venueRepo = &sqliteVenueRepo{db: db}
+	r.partyRepo = &sqlitePartyRepo{db: db}
+	return r, nil
+}
+
+func (r *SQLite) Venues() domain.VenueRepository  { return r.venueRepo }
+func (r *SQLite) Parties() domain.PartyRepository { return r.partyRepo }
+func (r *SQLite) Close() error                    { return r.db.Close() }
+
+const venueCols = "id, slug, name, open_time, close_time, open_override, staff_token"
+
+func scanVenue(row interface{ Scan(...any) error }) (*domain.Venue, error) {
+	var v domain.Venue
+	if err := row.Scan(&v.ID, &v.Slug, &v.Name, &v.OpenTime, &v.CloseTime, &v.OpenOverride, &v.StaffToken); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, domain.ErrNotFound
+		}
+		return nil, err
+	}
+	return &v, nil
+}
+
+type sqliteVenueRepo struct{ db *sql.DB }
+
+func (r *sqliteVenueRepo) Create(v *domain.Venue) error {
+	res, err := r.db.Exec(`INSERT INTO venues (slug, name, open_time, close_time, open_override, staff_token)
+		VALUES (?, ?, ?, ?, ?, ?)`, v.Slug, v.Name, v.OpenTime, v.CloseTime, v.OpenOverride, v.StaffToken)
+	if err != nil {
+		if strings.Contains(err.Error(), "UNIQUE") {
+			return domain.ErrInvalid
+		}
+		return err
+	}
+	v.ID, _ = res.LastInsertId()
+	return nil
+}
+
+func (r *sqliteVenueRepo) GetBySlug(slug string) (*domain.Venue, error) {
+	row := r.db.QueryRow(`SELECT `+venueCols+` FROM venues WHERE lower(slug) = lower(?)`, slug)
+	return scanVenue(row)
+}
+
+func (r *sqliteVenueRepo) GetByID(id int64) (*domain.Venue, error) {
+	row := r.db.QueryRow(`SELECT `+venueCols+` FROM venues WHERE id = ?`, id)
+	return scanVenue(row)
+}
+
+func (r *sqliteVenueRepo) Update(v *domain.Venue) error {
+	res, err := r.db.Exec(`UPDATE venues SET slug=?, name=?, open_time=?, close_time=?, open_override=?, staff_token=? WHERE id=?`,
+		v.Slug, v.Name, v.OpenTime, v.CloseTime, v.OpenOverride, v.StaffToken, v.ID)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return domain.ErrNotFound
+	}
+	return nil
+}
+
+const partyCols = "id, venue_id, name, pax, note, status, order_no, created_at"
+
+func scanParty(row interface{ Scan(...any) error }) (*domain.Party, error) {
+	var p domain.Party
+	var created string
+	if err := row.Scan(&p.ID, &p.VenueID, &p.Name, &p.Pax, &p.Note, &p.Status, &p.Order, &created); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, domain.ErrNotFound
+		}
+		return nil, err
+	}
+	t, err := time.Parse("2006-01-02T15:04:05Z", created)
+	if err != nil {
+		return nil, err
+	}
+	p.CreatedAt = t
+	return &p, nil
+}
+
+type sqlitePartyRepo struct{ db *sql.DB }
+
+func (r *sqlitePartyRepo) Create(p *domain.Party) error {
+	if p.CreatedAt.IsZero() {
+		p.CreatedAt = time.Now()
+	}
+	created := p.CreatedAt.UTC().Format("2006-01-02T15:04:05Z")
+	res, err := r.db.Exec(`INSERT INTO parties (venue_id, name, pax, note, status, order_no, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		p.VenueID, p.Name, p.Pax, p.Note, string(p.Status), p.Order, created)
+	if err != nil {
+		if strings.Contains(err.Error(), "UNIQUE") {
+			return domain.ErrInvalid
+		}
+		return err
+	}
+	p.ID, _ = res.LastInsertId()
+	return nil
+}
+
+func (r *sqlitePartyRepo) Get(id int64) (*domain.Party, error) {
+	row := r.db.QueryRow(`SELECT `+partyCols+` FROM parties WHERE id = ?`, id)
+	return scanParty(row)
+}
+
+func (r *sqlitePartyRepo) ListByVenue(venueID int64) ([]domain.Party, error) {
+	rows, err := r.db.Query(`SELECT `+partyCols+` FROM parties WHERE venue_id = ?`, venueID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []domain.Party{}
+	for rows.Next() {
+		p, err := scanParty(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, *p)
+	}
+	return out, rows.Err()
+}
+
+func (r *sqlitePartyRepo) Update(p *domain.Party) error {
+	created := p.CreatedAt.UTC().Format("2006-01-02T15:04:05Z")
+	res, err := r.db.Exec(`UPDATE parties SET name=?, pax=?, note=?, status=?, order_no=?, created_at=? WHERE id=?`,
+		p.Name, p.Pax, p.Note, string(p.Status), p.Order, created, p.ID)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return domain.ErrNotFound
+	}
+	return nil
+}

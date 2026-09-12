@@ -3,6 +3,7 @@ package repository
 import (
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/oktaaokta/hostly/internal/domain"
 )
@@ -94,6 +95,9 @@ type memoryPartyRepo struct{ m *Memory }
 func (r *memoryPartyRepo) Create(p *domain.Party) error {
 	r.m.mu.Lock()
 	defer r.m.mu.Unlock()
+	if p.CreatedAt.IsZero() {
+		p.CreatedAt = time.Now()
+	}
 	p.ID = r.m.nextP
 	r.m.nextP++
 	r.m.parties[p.ID] = p

@@ -342,6 +342,9 @@ type memoryPartyRepo struct{ m *Memory }
 func (r *memoryPartyRepo) Create(p *domain.Party) error {
 	r.m.mu.Lock()
 	defer r.m.mu.Unlock()
+	if p.CreatedAt.IsZero() {
+		p.CreatedAt = time.Now()
+	}
 	p.ID = r.m.nextP
 	r.m.nextP++
 	r.m.parties[p.ID] = p
@@ -1599,6 +1602,9 @@ func scanParty(row interface{ Scan(...any) error }) (*domain.Party, error) {
 type sqlitePartyRepo struct{ db *sql.DB }
 
 func (r *sqlitePartyRepo) Create(p *domain.Party) error {
+	if p.CreatedAt.IsZero() {
+		p.CreatedAt = time.Now()
+	}
 	created := p.CreatedAt.UTC().Format("2006-01-02T15:04:05Z")
 	res, err := r.db.Exec(`INSERT INTO parties (venue_id, name, pax, note, status, order_no, created_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?)`,
