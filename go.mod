@@ -5,6 +5,7 @@ go 1.26.3
 require (
 	github.com/go-chi/chi/v5 v5.3.2
 	github.com/gorilla/websocket v1.5.3
+	modernc.org/sqlite v1.58.0
 )
 
 require (
@@ -17,5 +18,4 @@ require (
 	modernc.org/libc v1.75.6 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.12.1 // indirect
-	modernc.org/sqlite v1.58.0 // indirect
 )

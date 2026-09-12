@@ -1510,14 +1510,20 @@ type SQLite struct {
 // OpenSQLite opens (creating if needed) the SQLite database, applies the
 // schema, and returns a ready repository.
 func OpenSQLite(path string) (*SQLite, error) {
-	db, err := sql.Open("sqlite", path)
+	dsn := path
+	if !strings.Contains(path, "?") {
+		dsn = path + "?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)"
+	}
+	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, err
 	}
 	if err := db.Ping(); err != nil {
+		db.Close()
 		return nil, err
 	}
 	if _, err := db.Exec(schema); err != nil {
+		db.Close()
 		return nil, err
 	}
 	r := &SQLite{db: db}
@@ -1572,6 +1578,9 @@ func (r *sqliteVenueRepo) Update(v *domain.Venue) error {
 	res, err := r.db.Exec(`UPDATE venues SET slug=?, name=?, open_time=?, close_time=?, open_override=?, staff_token=? WHERE id=?`,
 		v.Slug, v.Name, v.OpenTime, v.CloseTime, v.OpenOverride, v.StaffToken, v.ID)
 	if err != nil {
+		if strings.Contains(err.Error(), "UNIQUE") {
+			return domain.ErrInvalid
+		}
 		return err
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
@@ -1646,6 +1655,9 @@ func (r *sqlitePartyRepo) Update(p *domain.Party) error {
 	res, err := r.db.Exec(`UPDATE parties SET name=?, pax=?, note=?, status=?, order_no=?, created_at=? WHERE id=?`,
 		p.Name, p.Pax, p.Note, string(p.Status), p.Order, created, p.ID)
 	if err != nil {
+		if strings.Contains(err.Error(), "UNIQUE") {
+			return domain.ErrInvalid
+		}
 		return err
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
@@ -1660,7 +1672,11 @@ func (r *sqlitePartyRepo) Update(p *domain.Party) error {
 Run: `go test ./internal/repository/...`
 Expected: PASS (memory + sqlite suites).
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 6: Accept the join order-race caveat**
+
+Join does a non-transactional list+create; concurrent joins can briefly collide on `UNIQUE(venue_id, order_no)` and surface a spurious `ErrInvalid`. Accepted for a demo — no transaction wrapping.
+
+- [ ] **Step 7: Commit**
 
 ```bash
 git add go.mod go.sum internal/repository/sqlite.go internal/repository/sqlite_test.go
