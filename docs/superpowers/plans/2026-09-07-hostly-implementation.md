@@ -1905,7 +1905,7 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/api': 'http://localhost:8080',
+      '/api': { target: 'http://localhost:8080', ws: true },
     },
   },
 });
@@ -2212,6 +2212,10 @@ export interface JoinResult {
   ahead: number;
 }
 
+export interface ActionResult {
+  status: string;
+}
+
 export class ApiError extends Error {}
 
 const base = () => import.meta.env.BASE_URL;
@@ -2244,13 +2248,13 @@ export class API {
     return req<StaffView>(`api/venues/${this.slug}/staff?token=${encodeURIComponent(token)}`);
   }
   act(path: string, token: string, body?: unknown) {
-    return req<string>(`api/venues/${this.slug}/parties/${path}?token=${encodeURIComponent(token)}`, {
+    return req<ActionResult>(`api/venues/${this.slug}/parties/${path}?token=${encodeURIComponent(token)}`, {
       method: body === undefined ? 'POST' : 'PATCH',
       body: body === undefined ? undefined : JSON.stringify(body),
     });
   }
   hours(token: string, openTime: string, closeTime: string, override: string | null) {
-    return req<string>(`api/venues/${this.slug}/hours?token=${encodeURIComponent(token)}`, {
+    return req<ActionResult>(`api/venues/${this.slug}/hours?token=${encodeURIComponent(token)}`, {
       method: 'PATCH',
       body: JSON.stringify({ open_time: openTime, close_time: closeTime, override }),
     });
@@ -2277,28 +2281,29 @@ export function useVenue(slug: string) {
   const [error, setError] = useState<string | null>(null);
   const apiRef = useRef(new API(slug));
   const timer = useRef<number | undefined>(undefined);
+  const reconnectTimer = useRef<number | undefined>(undefined);
 
   const reload = useCallback(() => {
     apiRef.current
       .fetchView()
-      .then(setView)
+      .then((v) => {
+        setView(v);
+        setError(null);
+      })
       .catch((e: Error) => setError(e.message));
   }, []);
 
   useEffect(() => {
     apiRef.current = new API(slug);
     reload();
+    timer.current = window.setInterval(reload, 5000);
     let ws: WebSocket | null = null;
     let alive = true;
 
     const connect = () => {
       ws = new WebSocket(apiRef.current.wsUrl());
-      ws.onopen = () => {
-        timer.current = window.setInterval(reload, 5000);
-      };
       ws.onclose = () => {
-        window.clearInterval(timer.current);
-        if (alive) window.setTimeout(connect, 2000);
+        if (alive) reconnectTimer.current = window.setTimeout(connect, 2000);
       };
       ws.onmessage = reload;
     };
@@ -2307,6 +2312,7 @@ export function useVenue(slug: string) {
     return () => {
       alive = false;
       window.clearInterval(timer.current);
+      window.clearTimeout(reconnectTimer.current);
       ws?.close();
     };
   }, [reload, slug]);
@@ -2390,7 +2396,7 @@ export default function CustomerPage({ slug }: { slug: string }) {
     }
   }, [ahead]);
 
-  const seated = joined && mine === undefined;
+  const seated = view !== null && joined && mine === undefined;
   const loading = view === null && !error;
   const closed = view !== null && !view.is_open;
 
@@ -2431,7 +2437,7 @@ export default function CustomerPage({ slug }: { slug: string }) {
               {mine.name} · party of {mine.pax}
             </p>
           )}
-          <p className="muted">Open {view?.venue.open_time}–{view?.venue.close_time}</p>
+          <p className="muted">Open {view?.venue.open_time ?? '…'}–{view?.venue.close_time ?? '…'}</p>
         </div>
       ) : (
         <div className="body-width">

@@ -42,6 +42,10 @@ export interface JoinResult {
   ahead: number;
 }
 
+export interface ActionResult {
+  status: string;
+}
+
 export class ApiError extends Error {}
 
 const base = () => import.meta.env.BASE_URL;
@@ -74,13 +78,13 @@ export class API {
     return req<StaffView>(`api/venues/${this.slug}/staff?token=${encodeURIComponent(token)}`);
   }
   act(path: string, token: string, body?: unknown) {
-    return req<string>(`api/venues/${this.slug}/parties/${path}?token=${encodeURIComponent(token)}`, {
+    return req<ActionResult>(`api/venues/${this.slug}/parties/${path}?token=${encodeURIComponent(token)}`, {
       method: body === undefined ? 'POST' : 'PATCH',
       body: body === undefined ? undefined : JSON.stringify(body),
     });
   }
   hours(token: string, openTime: string, closeTime: string, override: string | null) {
-    return req<string>(`api/venues/${this.slug}/hours?token=${encodeURIComponent(token)}`, {
+    return req<ActionResult>(`api/venues/${this.slug}/hours?token=${encodeURIComponent(token)}`, {
       method: 'PATCH',
       body: JSON.stringify({ open_time: openTime, close_time: closeTime, override }),
     });

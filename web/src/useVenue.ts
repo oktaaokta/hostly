@@ -8,28 +8,29 @@ export function useVenue(slug: string) {
   const [error, setError] = useState<string | null>(null);
   const apiRef = useRef(new API(slug));
   const timer = useRef<number | undefined>(undefined);
+  const reconnectTimer = useRef<number | undefined>(undefined);
 
   const reload = useCallback(() => {
     apiRef.current
       .fetchView()
-      .then(setView)
+      .then((v) => {
+        setView(v);
+        setError(null);
+      })
       .catch((e: Error) => setError(e.message));
   }, []);
 
   useEffect(() => {
     apiRef.current = new API(slug);
     reload();
+    timer.current = window.setInterval(reload, 5000);
     let ws: WebSocket | null = null;
     let alive = true;
 
     const connect = () => {
       ws = new WebSocket(apiRef.current.wsUrl());
-      ws.onopen = () => {
-        timer.current = window.setInterval(reload, 5000);
-      };
       ws.onclose = () => {
-        window.clearInterval(timer.current);
-        if (alive) window.setTimeout(connect, 2000);
+        if (alive) reconnectTimer.current = window.setTimeout(connect, 2000);
       };
       ws.onmessage = reload;
     };
@@ -38,6 +39,7 @@ export function useVenue(slug: string) {
     return () => {
       alive = false;
       window.clearInterval(timer.current);
+      window.clearTimeout(reconnectTimer.current);
       ws?.close();
     };
   }, [reload, slug]);

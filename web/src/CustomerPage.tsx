@@ -41,7 +41,7 @@ export default function CustomerPage({ slug }: { slug: string }) {
     }
   }, [ahead]);
 
-  const seated = joined && mine === undefined;
+  const seated = view !== null && joined && mine === undefined;
   const loading = view === null && !error;
   const closed = view !== null && !view.is_open;
 
@@ -82,7 +82,7 @@ export default function CustomerPage({ slug }: { slug: string }) {
               {mine.name} · party of {mine.pax}
             </p>
           )}
-          <p className="muted">Open {view?.venue.open_time}–{view?.venue.close_time}</p>
+          <p className="muted">Open {view?.venue.open_time ?? '…'}–{view?.venue.close_time ?? '…'}</p>
         </div>
       ) : (
         <div className="body-width">
