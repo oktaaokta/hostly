@@ -288,6 +288,9 @@ func (r *memoryVenueRepo) Create(v *domain.Venue) error {
 	defer r.m.mu.Unlock()
 	v.ID = r.m.nextV
 	r.m.nextV++
+	if _, ok := r.m.bySlug[strings.ToLower(v.Slug)]; ok {
+		return domain.ErrInvalid
+	}
 	r.m.venues[v.ID] = v
 	r.m.bySlug[strings.ToLower(v.Slug)] = v
 	return nil
@@ -300,7 +303,8 @@ func (r *memoryVenueRepo) GetBySlug(slug string) (*domain.Venue, error) {
 	if !ok {
 		return nil, domain.ErrNotFound
 	}
-	return v, nil
+	cp := *v
+	return &cp, nil
 }
 
 func (r *memoryVenueRepo) GetByID(id int64) (*domain.Venue, error) {
@@ -310,7 +314,8 @@ func (r *memoryVenueRepo) GetByID(id int64) (*domain.Venue, error) {
 	if !ok {
 		return nil, domain.ErrNotFound
 	}
-	return v, nil
+	cp := *v
+	return &cp, nil
 }
 
 func (r *memoryVenueRepo) Update(v *domain.Venue) error {
@@ -319,10 +324,14 @@ func (r *memoryVenueRepo) Update(v *domain.Venue) error {
 	if _, ok := r.m.venues[v.ID]; !ok {
 		return domain.ErrNotFound
 	}
-	if old, ok := r.m.bySlug[strings.ToLower(v.Slug)]; ok && old.ID != v.ID {
+	if other, ok := r.m.bySlug[strings.ToLower(v.Slug)]; ok && other.ID != v.ID {
 		return domain.ErrInvalid
 	}
-	delete(r.m.bySlug, strings.ToLower(r.m.venues[v.ID].Slug))
+	for slug, ven := range r.m.bySlug {
+		if ven.ID == v.ID {
+			delete(r.m.bySlug, slug)
+		}
+	}
 	r.m.venues[v.ID] = v
 	r.m.bySlug[strings.ToLower(v.Slug)] = v
 	return nil

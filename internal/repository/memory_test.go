@@ -32,3 +32,25 @@ func TestMemoryCRUD(t *testing.T) {
 		t.Fatalf("missing venue error = %v", err)
 	}
 }
+
+func TestVenueUpdateSlug(t *testing.T) {
+	m := NewMemory()
+	a := &domain.Venue{Slug: "a", Name: "A", OpenTime: "10:00", CloseTime: "22:00", StaffToken: "t"}
+	if err := m.Venues().Create(a); err != nil {
+		t.Fatal(err)
+	}
+	a.Slug = "b"
+	if err := m.Venues().Update(a); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.Venues().GetBySlug("b"); err != nil {
+		t.Fatalf("GetBySlug(b) after rename = %v", err)
+	}
+	if _, err := m.Venues().GetBySlug("A"); err != domain.ErrNotFound {
+		t.Fatalf("GetBySlug(A) after rename = %v, want ErrNotFound", err)
+	}
+	dup := &domain.Venue{Slug: "b", Name: "B", OpenTime: "10:00", CloseTime: "22:00", StaffToken: "t"}
+	if err := m.Venues().Create(dup); err != domain.ErrInvalid {
+		t.Fatalf("Create(duplicate slug) = %v, want ErrInvalid", err)
+	}
+}
