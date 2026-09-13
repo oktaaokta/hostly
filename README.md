@@ -80,6 +80,12 @@ Public and staff pages open a WebSocket to `/api/venues/{slug}/ws`. Server
 pushes `party_joined` / `venue_updated` events; clients refetch the snapshot.
 A 5 s polling fallback keeps things fresh when sockets can't stay open.
 
+## Screenshots
+
+| Customer queue page | Staff dashboard |
+| --- | --- |
+| ![Customer queue page](screenshots/customer-join.png) | ![Staff dashboard](screenshots/staff-dashboard.png) |
+
 ## License
 
 MIT
