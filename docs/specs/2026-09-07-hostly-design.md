@@ -25,7 +25,7 @@ hostly/
 │   ├── handler/                # HTTP + WebSocket handlers (chi)
 │   └── repository/             # SQLite implementation
 ├── web/                        # React + TypeScript + Vite SPA
-├── docs/superpowers/
+├── docs/
 ├── Makefile
 ├── go.mod
 └── .gitignore

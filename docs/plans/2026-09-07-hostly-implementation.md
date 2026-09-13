@@ -1,6 +1,5 @@
 # hostly — Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Ship hostly — a multi-venue restaurant queueing system with a customer waitlist page (live spot + being-called banner), a per-venue staff dashboard, and SQLite persistence, deployed as a single Go binary serving an embedded React SPA.
 
@@ -8,7 +7,7 @@
 
 **Tech Stack:** Go 1.26 (chi v5, gorilla/websocket, modernc.org/sqlite), React + TypeScript + Vite, plain CSS, Web Audio for the chime.
 
-**Spec:** `docs/superpowers/specs/2026-09-07-hostly-design.md`
+**Spec:** `docs/specs/2026-09-07-hostly-design.md`
 **Repo:** `github.com/oktaaokta/hostly` (private) — module `github.com/oktaaokta/hostly`
 
 **Phases:**
@@ -3015,7 +3014,7 @@ see it.
 
 ## Self-Review Notes
 
-This plan is derived from `docs/superpowers/specs/2026-09-07-hostly-design.md`.
+This plan is derived from `docs/specs/2026-09-07-hostly-design.md`.
 Resolved during drafting (all verified against the spec):
 
 - **Court of law for duplication:** the check is case-insensitive and scoped to

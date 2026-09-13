@@ -13,7 +13,6 @@
 > - `QRPNG(slug, key, date, origin)` folds basePath into origin (no separate basePath arg).
 > - Handler ripple bit of Task 5’s scope was pulled into Task 4 (join body email/phone + k/d query) to keep the tree green.
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Rebrand the demo venue to Shiro Cafe, collect email/phone (at least one) at join, log a placeholder notification when staff seats a party, and gate the queue behind a token-gated daily QR shown on the staff dashboard.
 
@@ -1265,8 +1264,8 @@ git commit -m "feat: join contact and daily key via http, qr png, rotate endpoin
 - Modify: `cmd/hostly/main.go`
 - Modify: `internal/domain/venue_test.go`
 - Modify: `README.md`
-- Modify: `docs/superpowers/specs/2026-09-07-hostly-design.md`
-- Modify: `docs/superpowers/plans/2026-09-07-hostly-implementation.md`
+- Modify: `docs/specs/2026-09-07-hostly-design.md`
+- Modify: `docs/plans/2026-09-07-hostly-implementation.md`
 
 - [x] **Step 1: main.go wiring + seed rename**
 
@@ -1321,9 +1320,9 @@ The daily QR's "day" is the server's local calendar date — run the binary in
 the cafe's timezone.
 ```
 
-`docs/superpowers/specs/2026-09-07-hostly-design.md` line 49: `joes-diner` → `shiro-cafe`.
+`docs/specs/2026-09-07-hostly-design.md` line 49: `joes-diner` → `shiro-cafe`.
 
-`docs/superpowers/plans/2026-09-07-hostly-implementation.md`: replace every `joes-diner` with `shiro-cafe` and every "Joe's Diner" with "Shiro Cafe" (reader-facing strings only; leave the `cock/booth` example parties untouched).
+`docs/plans/2026-09-07-hostly-implementation.md`: replace every `joes-diner` with `shiro-cafe` and every "Joe's Diner" with "Shiro Cafe" (reader-facing strings only; leave the `cock/booth` example parties untouched).
 
 - [x] **Step 4: Verify**
 
@@ -1547,7 +1546,7 @@ git commit -m "feat: contact fields in join, stale-link screen, staff qr panel"
 ### Task 8: Plan-sync + full verification + feature branch push
 
 **Files:**
-- Modify: `docs/superpowers/plans/2026-09-12-shiro-cafe-daily-qr-design.md` (this plan — add an Implementation Notes section at the bottom noting: QR payload absolute via origin/basePath; `notify` on seat only; migration approach; `ErrStale`→410)
+- Modify: `docs/plans/2026-09-12-shiro-cafe-daily-qr-design.md` (this plan — add an Implementation Notes section at the bottom noting: QR payload absolute via origin/basePath; `notify` on seat only; migration approach; `ErrStale`→410)
 
 - [x] **Step 1: Sync deviations**
 
