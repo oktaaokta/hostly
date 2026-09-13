@@ -15,13 +15,15 @@ import (
 type Handler struct {
 	us       *usecase.Queue
 	hub      *Hub
+	basePath string
 	upgrader websocket.Upgrader
 }
 
-func New(us *usecase.Queue, hub *Hub) *Handler {
+func New(us *usecase.Queue, hub *Hub, basePath string) *Handler {
 	return &Handler{
 		us:       us,
 		hub:      hub,
+		basePath: basePath,
 		upgrader: websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }},
 	}
 }
@@ -46,6 +48,8 @@ func writeErr(w http.ResponseWriter, err error) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
 	case errors.Is(err, domain.ErrUnauthorized):
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": err.Error()})
+	case errors.Is(err, domain.ErrStale):
+		writeJSON(w, http.StatusGone, map[string]string{"error": err.Error()})
 	case errors.Is(err, domain.ErrClosed), errors.Is(err, domain.ErrDuplicate), errors.Is(err, domain.ErrNotWaiting):
 		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
 	default:
@@ -62,6 +66,8 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 	r.Post("/api/venues/{slug}/parties/{id}/leave", h.leave)
 	r.Post("/api/venues/{slug}/parties/{id}/top", h.top)
 	r.Patch("/api/venues/{slug}/hours", h.updateHours)
+	r.Get("/api/venues/{slug}/qr.png", h.joinQR)
+	r.Post("/api/venues/{slug}/staff/rotate-qr", h.rotateQR)
 	r.Get("/api/venues/{slug}/ws", h.websocket)
 }
 
@@ -75,9 +81,11 @@ func (h *Handler) getCustomerView(w http.ResponseWriter, r *http.Request) {
 }
 
 type joinRequest struct {
-	Name string `json:"name"`
-	Pax  int    `json:"pax"`
-	Note string `json:"note"`
+	Name  string `json:"name"`
+	Pax   int    `json:"pax"`
+	Note  string `json:"note"`
+	Email string `json:"email"`
+	Phone string `json:"phone"`
 }
 
 func (h *Handler) join(w http.ResponseWriter, r *http.Request) {
@@ -87,7 +95,8 @@ func (h *Handler) join(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, domain.ErrInvalid)
 		return
 	}
-	res, err := h.us.Join(slug, body.Name, body.Pax, body.Note)
+	res, err := h.us.Join(slug, body.Name, body.Pax, body.Note, body.Email, body.Phone,
+		r.URL.Query().Get("k"), r.URL.Query().Get("d"))
 	if err != nil {
 		writeErr(w, err)
 		return
@@ -108,12 +117,46 @@ func token(r *http.Request) string {
 
 func (h *Handler) getStaffView(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
-	v, err := h.us.StaffView(slug, token(r))
+	v, err := h.us.StaffView(slug, token(r), h.origin(r))
 	if err != nil {
 		writeErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, v)
+}
+
+// origin returns the absolute base (scheme + host + basePath) that printed QR
+// links must point at so phone scans land on this server.
+func (h *Handler) origin(r *http.Request) string {
+	scheme := "http"
+	if r.TLS != nil {
+		scheme = "https"
+	}
+	if f := r.Header.Get("X-Forwarded-Proto"); f != "" {
+		scheme = f
+	}
+	return scheme + "://" + r.Host + h.basePath
+}
+
+func (h *Handler) joinQR(w http.ResponseWriter, r *http.Request) {
+	slug := chi.URLParam(r, "slug")
+	png, err := h.us.QRPNG(slug, r.URL.Query().Get("k"), r.URL.Query().Get("d"), h.origin(r))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", "image/png")
+	w.Write(png)
+}
+
+func (h *Handler) rotateQR(w http.ResponseWriter, r *http.Request) {
+	slug := chi.URLParam(r, "slug")
+	if err := h.us.RotateSecret(slug, token(r)); err != nil {
+		writeErr(w, err)
+		return
+	}
+	h.broadcastVenue(r)
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 // partyAction runs a staff action on a party and broadcasts a venue update.

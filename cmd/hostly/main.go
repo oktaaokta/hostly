@@ -37,7 +37,7 @@ func main() {
 		seedVenue(db.Venues())
 	}
 
-	h := handler.New(q, handler.NewHub())
+	h := handler.New(q, handler.NewHub(), basePath)
 	r := chi.NewRouter()
 	r.Use(chimw.Logger)
 	r.Use(chimw.Recoverer)
@@ -93,15 +93,15 @@ func mimeTypeByPath(path string) string {
 }
 
 func seedVenue(vr domain.VenueRepository) {
-	v := &domain.Venue{Slug: "joes-diner", Name: "Joe's Diner", OpenTime: "10:00", CloseTime: "22:00", StaffToken: "demo-staff-token"}
+	v := &domain.Venue{Slug: "shiro-cafe", Name: "Shiro Cafe", OpenTime: "10:00", CloseTime: "22:00", StaffToken: "demo-staff-token"}
 	if _, err := vr.GetBySlug(v.Slug); err == nil {
-		log.Println("seed: joes-diner already exists")
+		log.Println("seed: shiro-cafe already exists")
 		return
 	}
 	if err := vr.Create(v); err != nil {
 		log.Fatalf("seed: %v", err)
 	}
-	log.Println("seed: joes-diner created — staff URL /staff/joes-diner?token=demo-staff-token")
+	log.Println("seed: shiro-cafe created — staff URL /staff/shiro-cafe?token=demo-staff-token")
 }
 
 func envOr(key, def string) string {

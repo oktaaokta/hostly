@@ -5,7 +5,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/skip2/go-qrcode"
+
 	"github.com/oktaaokta/hostly/internal/domain"
+	"github.com/oktaaokta/hostly/internal/notify"
 )
 
 type Queue struct {
@@ -23,16 +26,24 @@ type JoinResult struct {
 	Ahead int           `json:"ahead"`
 }
 
-// Join validates input, checks the venue is open, guards against duplicate
-// names, assigns the next order, and persists the party.
-func (q *Queue) Join(slug, name string, pax int, note string) (*JoinResult, error) {
+// Join validates input and a same-day daily key, checks the venue is open,
+// guards against duplicate names, assigns the next order, and persists the
+// party with its contact details.
+func (q *Queue) Join(slug, name string, pax int, note, email, phone, key, date string) (*JoinResult, error) {
 	name = strings.TrimSpace(name)
 	if name == "" || pax < 1 || pax > 20 {
 		return nil, domain.ErrInvalid
 	}
+	if err := domain.ValidateContact(email, phone); err != nil {
+		return nil, err
+	}
 	ven, err := q.ven.GetBySlug(slug)
 	if err != nil {
 		return nil, err
+	}
+	today := q.now().Format("2006-01-02")
+	if date != today || key != domain.DailyKey(ven.DailySecret, today) {
+		return nil, domain.ErrStale
 	}
 	if !ven.IsOpen(q.now()) {
 		return nil, domain.ErrClosed
@@ -57,7 +68,7 @@ func (q *Queue) Join(slug, name string, pax int, note string) (*JoinResult, erro
 		}
 	}
 	p := &domain.Party{
-		VenueID: ven.ID, Name: name, Pax: pax, Note: note,
+		VenueID: ven.ID, Name: name, Pax: pax, Note: note, Email: email, Phone: phone,
 		Status: domain.PartyWaiting, Order: order, CreatedAt: q.now(),
 	}
 	if err := q.par.Create(p); err != nil {
@@ -113,14 +124,22 @@ type Stats struct {
 	SeatedToday int `json:"seated_today"`
 }
 
+// QRInfo describes a venue's printed join code for the current day.
+type QRInfo struct {
+	Date  string `json:"date"`
+	Link  string `json:"link"`
+	QRURL string `json:"qr_url"`
+}
+
 // StaffView is the full queue state staff see, including seated/left parties.
 type StaffView struct {
 	Venue   *domain.Venue   `json:"venue"`
 	Parties []*domain.Party `json:"parties"`
 	Stats   Stats           `json:"stats"`
+	QRCode  QRInfo          `json:"qrcode"`
 }
 
-func (q *Queue) StaffView(slug, token string) (*StaffView, error) {
+func (q *Queue) StaffView(slug, token, origin string) (*StaffView, error) {
 	ven, err := q.ven.GetBySlug(slug)
 	if err != nil {
 		return nil, err
@@ -133,7 +152,7 @@ func (q *Queue) StaffView(slug, token string) (*StaffView, error) {
 		return nil, err
 	}
 	sort.Slice(list, func(i, j int) bool { return list[i].Order < list[j].Order })
-	view := &StaffView{Venue: ven, Parties: []*domain.Party{}}
+	view := &StaffView{Venue: ven, Parties: []*domain.Party{}, QRCode: q.qrInfo(ven, origin)}
 	today := q.now().Format("2006-01-02")
 	for i := range list {
 		p := &list[i]
@@ -167,9 +186,33 @@ func (q *Queue) seatOrLeave(slug, token string, partyID int64, next domain.Party
 	return q.par.Update(p)
 }
 
-// Seat marks a waiting party seated.
+// Seat marks a waiting party seated, stamps the notification, and sends the
+// table-ready notice.
 func (q *Queue) Seat(slug, token string, partyID int64) error {
-	return q.seatOrLeave(slug, token, partyID, domain.PartySeated)
+	venue, err := q.fetchAuthorized(slug, token)
+	if err != nil {
+		return err
+	}
+	p, err := q.par.Get(partyID)
+	if err != nil {
+		return err
+	}
+	if p.VenueID != venue.ID {
+		return domain.ErrNotFound
+	}
+	if p.Status != domain.PartyWaiting {
+		return domain.ErrNotWaiting
+	}
+	p.Status = domain.PartySeated
+	if p.Email != "" || p.Phone != "" {
+		now := q.now()
+		p.NotifiedAt = &now
+	}
+	if err := q.par.Update(p); err != nil {
+		return err
+	}
+	notify.Send(p)
+	return nil
 }
 
 // Leave marks a waiting party left/removed.
@@ -258,4 +301,36 @@ func (q *Queue) fetchAuthorized(slug, token string) (*domain.Venue, error) {
 		return nil, domain.ErrUnauthorized
 	}
 	return ven, nil
+}
+
+// qrInfo builds the day's join code block. Origin is empty for relative links.
+func (q *Queue) qrInfo(v *domain.Venue, origin string) QRInfo {
+	date := q.now().Format("2006-01-02")
+	path := "/api/venues/" + v.Slug + "/qr.png?d=" + date + "&k=" + domain.DailyKey(v.DailySecret, date)
+	return QRInfo{Date: date, Link: path, QRURL: origin + path}
+}
+
+// RotateSecret replaces a venue's daily secret, invalidating printed links.
+func (q *Queue) RotateSecret(slug, token string) error {
+	v, err := q.fetchAuthorized(slug, token)
+	if err != nil {
+		return err
+	}
+	v.DailySecret = domain.GenerateSecret()
+	return q.ven.Update(v)
+}
+
+// QRPNG renders today's join QR as a PNG. origin is the absolute base
+// (scheme + host) the printed code must point at.
+func (q *Queue) QRPNG(slug, key, date, origin string) ([]byte, error) {
+	v, err := q.ven.GetBySlug(slug)
+	if err != nil {
+		return nil, err
+	}
+	today := q.now().Format("2006-01-02")
+	if date != today || key != domain.DailyKey(v.DailySecret, today) {
+		return nil, domain.ErrStale
+	}
+	url := origin + "/api/venues/" + slug + "/qr.png?d=" + date + "&k=" + key
+	return qrcode.Encode(url, qrcode.Medium, 256)
 }

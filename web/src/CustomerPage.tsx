@@ -7,9 +7,15 @@ import { useVenue } from './useVenue';
 const STORAGE_KEY = (slug: string) => `hostly.${slug}`;
 
 export default function CustomerPage({ slug }: { slug: string }) {
+  const params = new URLSearchParams(window.location.search);
+  const d = params.get('d') ?? '';
+  const k = params.get('k') ?? '';
+  const badLink = !d || !k;
   const { view, error } = useVenue(slug);
   const [name, setName] = useState('');
   const [pax, setPax] = useState(2);
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [joined, setJoined] = useState<{ id: number; name: string } | null>(null);
@@ -48,10 +54,14 @@ export default function CustomerPage({ slug }: { slug: string }) {
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (busy) return;
+    if (!email.trim() && !phone.trim()) {
+      setFormError('Add an email or phone number so we can call you when your table is ready.');
+      return;
+    }
     setBusy(true);
     setFormError(null);
     try {
-      const res = await new API(slug).join(name.trim(), pax, '');
+      const res = await new API(slug).join(name.trim(), pax, '', email.trim(), phone.trim(), d, k);
       const info = { id: res.party.id, name: name.trim() };
       setJoined(info);
       sessionStorage.setItem(STORAGE_KEY(slug), JSON.stringify(info));
@@ -60,6 +70,17 @@ export default function CustomerPage({ slug }: { slug: string }) {
     } finally {
       setBusy(false);
     }
+  }
+
+  if (badLink) {
+    return (
+      <main className="center-page">
+        <div className="card body-width">
+          <h1 className="hero">Bad link</h1>
+          <p className="sub">This code only works on the day it was printed — grab today's QR from the café.</p>
+        </div>
+      </main>
+    );
   }
 
   return (
@@ -115,6 +136,15 @@ export default function CustomerPage({ slug }: { slug: string }) {
                     </select>
                   </div>
                 </div>
+                <div>
+                  <label htmlFor="email">Email</label>
+                  <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" maxLength={120} />
+                </div>
+                <div>
+                  <label htmlFor="phone">Phone (WhatsApp)</label>
+                  <input id="phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+62…" maxLength={30} />
+                </div>
+                <p className="muted" style={{ marginTop: 0 }}>Add one of these so we can tell you when your table is ready.</p>
                 <button className="primary" type="submit" disabled={busy}>
                   {busy ? 'Joining…' : 'Join the waitlist'}
                 </button>

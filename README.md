@@ -10,12 +10,25 @@ built React SPA from one process. No external services, no cgo.
 ## Quick start (demo)
 
     make demo          # builds and runs the API + SPA, seeding a demo venue
-    # open http://localhost:8080/q/joes-diner
-    # and   http://localhost:8080/staff/joes-diner?token=demo-staff-token
+    # open http://localhost:8080/q/shiro-cafe
+    # and   http://localhost:8080/staff/shiro-cafe?token=demo-staff-token
 
-`-seed` creates a venue named "Joe's Diner" (slug `joes-diner`, staff token
+`-seed` creates a venue named "Shiro Cafe" (slug `shiro-cafe`, staff token
 `demo-staff-token`, open 10:00–22:00). Point a real restaurant at
-`/q/joes-diner` via a QR code and hand the staff URL to the host stand.
+`/q/shiro-cafe` via a QR code and hand the staff URL to the host stand.
+The staff dashboard shows today's QR code — print it fresh each day, since
+each code only works on the day it was produced (see "Daily QR"), and join
+asks customers for an email or phone so staff can notify them.
+
+## Daily QR
+
+Each venue has a secret that changes only when staff press **Regenerate code**
+in the dashboard. A join link is `GET /q/{slug}?d=YYYY-MM-DD&k=KEY`, where
+`KEY` is derived from the venue secret and that date, and the server rejects
+links that aren't for today — so yesterday's printed QR quietly stops working.
+QRs are rendered PNGs pointing at an absolute URL built from the request host.
+The "day" is the server's local calendar date; keep servers in the venue's
+timezone.
 
 ## Development
 
@@ -23,7 +36,7 @@ built React SPA from one process. No external services, no cgo.
     make run                            # API on :8080 without seeding
     cd web && npm run dev               # Vite dev server (proxies /api -> :8080)
 
-Then open http://localhost:5173/q/joes-diner.
+Then open http://localhost:5173/q/shiro-cafe.
 
 ## Configuration
 
@@ -51,9 +64,10 @@ Give customers the link to `/q/my-cafe` (via QR code) and keep
 ## Data model
 
 - **venues**: slug, name, open/close window, staff token, optional open override
-  (auto / force-open / force-closed).
+  (auto / force-open / force-closed), daily secret (drives the daily QR).
 - **parties**: name, party size, note, status (`waiting | seated | left`), order
-  (sort key; lower = earlier), created time.
+  (sort key; lower = earlier), created time, email/phone (join contact, used for
+  the seat-time notification; at least one required), notified timestamp.
 
 Seated and left parties stay in the database so "seated today" and the earlier
 list remain accurate across the day. Customers who leave the page mid-wait

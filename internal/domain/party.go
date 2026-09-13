@@ -12,12 +12,15 @@ const (
 
 // Party is one group in a venue's queue. Order is the sort key: lower = earlier.
 type Party struct {
-	ID        int64       `json:"id"`
-	VenueID   int64       `json:"venue_id"`
-	Name      string      `json:"name"`
-	Pax       int         `json:"pax"`
-	Note      string      `json:"note"`
-	Status    PartyStatus `json:"status"`
-	Order     int         `json:"order"`
-	CreatedAt time.Time   `json:"created_at"`
+	ID         int64       `json:"id"`
+	VenueID    int64       `json:"venue_id"`
+	Name       string      `json:"name"`
+	Pax        int         `json:"pax"`
+	Note       string      `json:"note"`
+	Email      string      `json:"email"`
+	Phone      string      `json:"phone"`
+	NotifiedAt *time.Time  `json:"notified_at"`
+	Status     PartyStatus `json:"status"`
+	Order      int         `json:"order"`
+	CreatedAt  time.Time   `json:"created_at"`
 }

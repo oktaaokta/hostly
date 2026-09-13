@@ -29,12 +29,22 @@ export interface Party {
   status: 'waiting' | 'seated' | 'left';
   order: number;
   created_at: string;
+  email: string;
+  phone: string;
+  notified_at: string | null;
+}
+
+export interface QRCode {
+  date: string;
+  link: string;
+  qr_url: string;
 }
 
 export interface StaffView {
   venue: Venue;
   parties: Party[];
   stats: { waiting: number; seated_today: number };
+  qrcode: QRCode;
 }
 
 export interface JoinResult {
@@ -68,10 +78,11 @@ export class API {
   fetchView() {
     return req<CustomerView>(`api/venues/${this.slug}`);
   }
-  join(name: string, pax: number, note: string) {
-    return req<JoinResult>(`api/venues/${this.slug}/parties`, {
+  join(name: string, pax: number, note: string, email: string, phone: string, d = '', k = '') {
+    const q = d && k ? `?d=${encodeURIComponent(d)}&k=${encodeURIComponent(k)}` : '';
+    return req<JoinResult>(`api/venues/${this.slug}/parties${q}`, {
       method: 'POST',
-      body: JSON.stringify({ name, pax, note }),
+      body: JSON.stringify({ name, pax, note, email, phone }),
     });
   }
   staffView(token: string) {
@@ -87,6 +98,12 @@ export class API {
     return req<ActionResult>(`api/venues/${this.slug}/hours?token=${encodeURIComponent(token)}`, {
       method: 'PATCH',
       body: JSON.stringify({ open_time: openTime, close_time: closeTime, override }),
+    });
+  }
+  rotate(token: string) {
+    return req<ActionResult>(`api/venues/${this.slug}/staff/rotate-qr`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Staff-Token': token },
     });
   }
   wsUrl() {

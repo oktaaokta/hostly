@@ -39,6 +39,9 @@ type memoryVenueRepo struct{ m *Memory }
 func (r *memoryVenueRepo) Create(v *domain.Venue) error {
 	r.m.mu.Lock()
 	defer r.m.mu.Unlock()
+	if v.DailySecret == "" {
+		v.DailySecret = domain.GenerateSecret()
+	}
 	v.ID = r.m.nextV
 	r.m.nextV++
 	if _, ok := r.m.bySlug[strings.ToLower(v.Slug)]; ok {
