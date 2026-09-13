@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -25,7 +26,7 @@ func newTestServer(t *testing.T) *httptest.Server {
 		t.Fatal(err)
 	}
 	q := usecase.NewQueue(m.Venues(), m.Parties(), func() time.Time { return time.Date(2026, 9, 7, 12, 0, 0, 0, time.UTC) })
-	h := New(q, NewHub())
+	h := New(q, NewHub(), "")
 	r := chi.NewRouter()
 	h.RegisterRoutes(r)
 	ts := httptest.NewServer(r)
@@ -34,8 +35,12 @@ func newTestServer(t *testing.T) *httptest.Server {
 }
 
 func joinQuery() string {
-	now := time.Date(2026, 9, 7, 12, 0, 0, 0, time.UTC)
-	return "?d=" + now.Format("2006-01-02") + "&k=" + domain.DailyKey("testsecret", now.Format("2006-01-02"))
+	date := joinQueryDate()
+	return "?d=" + date + "&k=" + domain.DailyKey("testsecret", date)
+}
+
+func joinQueryDate() string {
+	return time.Date(2026, 9, 7, 12, 0, 0, 0, time.UTC).Format("2006-01-02")
 }
 
 func post(t *testing.T, ts *httptest.Server, path string, body any) *http.Response {
@@ -131,6 +136,98 @@ func TestStaffSeatFlow(t *testing.T) {
 	json.NewDecoder(get.Body).Decode(&cv)
 	if !cv.IsOpen || cv.WaitingCount != 0 {
 		t.Errorf("customer view after seat = %+v", cv)
+	}
+}
+
+func TestJoinDailyGate(t *testing.T) {
+	ts := newTestServer(t)
+
+	resp := post(t, ts, "/api/venues/joes/parties?d="+joinQueryDate()+"&k=deadbeef", map[string]any{"name": "A", "pax": 1, "email": "a@x.com"})
+	if resp.StatusCode != http.StatusGone {
+		t.Errorf("bad key status = %d", resp.StatusCode)
+	}
+	resp.Body.Close()
+
+	resp = post(t, ts, "/api/venues/joes/parties?d=2000-01-01&k="+domain.DailyKey("testsecret", "2000-01-01"), map[string]any{"name": "B", "pax": 1, "email": "b@x.com"})
+	if resp.StatusCode != http.StatusGone {
+		t.Errorf("old date status = %d", resp.StatusCode)
+	}
+	resp.Body.Close()
+
+	resp = post(t, ts, "/api/venues/joes/parties"+joinQuery(), map[string]any{"name": "C", "pax": 1})
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("no contact status = %d", resp.StatusCode)
+	}
+	resp.Body.Close()
+}
+
+func TestQRPNGEndpoint(t *testing.T) {
+	ts := newTestServer(t)
+
+	date := joinQueryDate()
+	resp, err := http.Get(ts.URL + "/api/venues/joes/qr.png?d=" + date + "&k=" + domain.DailyKey("testsecret", date))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK || resp.Header.Get("Content-Type") != "image/png" {
+		t.Fatalf("status=%d type=%q", resp.StatusCode, resp.Header.Get("Content-Type"))
+	}
+	b, _ := io.ReadAll(resp.Body)
+	if len(b) < 8 || !bytes.Equal(b[:4], []byte{0x89, 'P', 'N', 'G'}) {
+		t.Fatalf("not a png, len=%d", len(b))
+	}
+
+	resp2, err := http.Get(ts.URL + "/api/venues/joes/qr.png?d=" + date + "&k=deadbeef")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp2.Body.Close()
+	if resp2.StatusCode != http.StatusGone {
+		t.Errorf("stale qr status = %d", resp2.StatusCode)
+	}
+}
+
+func TestRotateQR(t *testing.T) {
+	ts := newTestServer(t)
+
+	date := joinQueryDate()
+	path := "/api/venues/joes/staff/rotate-qr?token=tok"
+	resp, err := http.Post(ts.URL+path, "application/json", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("rotate status = %d", resp.StatusCode)
+	}
+
+	resp, err = http.Get(ts.URL + "/api/venues/joes/qr.png?d=" + date + "&k=" + domain.DailyKey("testsecret", date))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusGone {
+		t.Errorf("pre-rotate key still alive: %d", resp.StatusCode)
+	}
+
+	get, err := http.Get(ts.URL + "/api/venues/joes/staff?token=tok")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer get.Body.Close()
+	var sv struct {
+		QRCode struct {
+			Link  string `json:"link"`
+			QRURL string `json:"qr_url"`
+		} `json:"qrcode"`
+	}
+	json.NewDecoder(get.Body).Decode(&sv)
+	if !strings.HasPrefix(sv.QRCode.QRURL, "http") || !strings.Contains(sv.QRCode.QRURL, "/api/venues/joes/qr.png?d=") {
+		t.Errorf("qr_url = %q", sv.QRCode.QRURL)
+	}
+	if !strings.HasPrefix(sv.QRCode.Link, "/api/venues/joes/qr.png?d=") {
+		t.Errorf("link = %q", sv.QRCode.Link)
 	}
 }
 

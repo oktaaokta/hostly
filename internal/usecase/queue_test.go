@@ -137,7 +137,7 @@ func TestSeatLeaveTopEditHours(t *testing.T) {
 		t.Errorf("re-seat err = %v", err)
 	}
 
-	view, _ := q.StaffView(ven.Slug, "tok")
+	view, _ := q.StaffView(ven.Slug, "tok", "")
 	if view.Stats.Waiting != 1 || view.Stats.SeatedToday != 1 {
 		t.Errorf("stats after seat = %+v", view.Stats)
 	}
@@ -185,10 +185,10 @@ func TestSeatLeaveTopEditHours(t *testing.T) {
 		t.Errorf("edited pax = %d", info.Waiting[0].Pax)
 	}
 
-	if _, err := q.StaffView(ven.Slug, "nope"); err != domain.ErrUnauthorized {
+	if _, err := q.StaffView(ven.Slug, "nope", ""); err != domain.ErrUnauthorized {
 		t.Errorf("staff bad token err = %v", err)
 	}
-	if _, err := q.StaffView("missing", "tok"); err != domain.ErrNotFound {
+	if _, err := q.StaffView("missing", "tok", ""); err != domain.ErrNotFound {
 		t.Errorf("staff missing venue err = %v", err)
 	}
 }
@@ -245,7 +245,7 @@ func TestJSONContractSnakeCaseRedactsToken(t *testing.T) {
 		t.Errorf("venue leaks daily_secret: %s", cb)
 	}
 
-	sv, err := q.StaffView(ven.Slug, "tok")
+	sv, err := q.StaffView(ven.Slug, "tok", "https://shop.example")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -386,7 +386,7 @@ func TestSeatBuildsQRCodeInfo(t *testing.T) {
 	if _, err := h.Join("g", "A", 1, "", "a@b.co", "", k, today); err != nil {
 		t.Fatal(err)
 	}
-	sv, err := h.StaffView("g", "t")
+	sv, err := h.StaffView("g", "t", "https://g.example")
 	if err != nil {
 		t.Fatal(err)
 	}

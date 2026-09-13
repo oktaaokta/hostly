@@ -139,7 +139,7 @@ type StaffView struct {
 	QRCode  QRInfo          `json:"qrcode"`
 }
 
-func (q *Queue) StaffView(slug, token string) (*StaffView, error) {
+func (q *Queue) StaffView(slug, token, origin string) (*StaffView, error) {
 	ven, err := q.ven.GetBySlug(slug)
 	if err != nil {
 		return nil, err
@@ -152,7 +152,7 @@ func (q *Queue) StaffView(slug, token string) (*StaffView, error) {
 		return nil, err
 	}
 	sort.Slice(list, func(i, j int) bool { return list[i].Order < list[j].Order })
-	view := &StaffView{Venue: ven, Parties: []*domain.Party{}, QRCode: q.qrInfo(ven, "")}
+	view := &StaffView{Venue: ven, Parties: []*domain.Party{}, QRCode: q.qrInfo(ven, origin)}
 	today := q.now().Format("2006-01-02")
 	for i := range list {
 		p := &list[i]
