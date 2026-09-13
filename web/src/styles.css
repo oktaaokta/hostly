@@ -54,6 +54,9 @@ input:focus, select:focus { outline: 2px solid var(--accent); border-color: tran
   padding: 28px;
 }
 
+.qr-actions { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.qr-body { display: flex; gap: 20px; align-items: center; margin-top: 16px; }
+
 .center-page {
   min-height: 100%;
   display: flex;

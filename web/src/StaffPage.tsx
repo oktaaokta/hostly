@@ -5,6 +5,11 @@ import { API, Party, StaffView } from './api';
 const fmtTime = (iso: string) =>
   new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 
+const contact = (p: Party) => [p.email, p.phone].filter(Boolean).join(' · ');
+
+const notifiedChip = (p: Party) =>
+  p.notified_at ? <span className="tag seated">notified {fmtTime(p.notified_at)}</span> : null;
+
 export default function StaffPage({ slug, token }: { slug: string; token: string }) {
   const api = useMemo(() => new API(slug), [slug]);
   const [data, setData] = useState<StaffView | null>(null);
@@ -91,6 +96,11 @@ export default function StaffPage({ slug, token }: { slug: string; token: string
   const waiting = data.parties.filter((p) => p.status === 'waiting');
   const settled = data.parties.filter((p) => p.status !== 'waiting');
 
+  const qrCopy = () => {
+    if (data.qrcode.link.startsWith('http')) return data.qrcode.link;
+    return window.location.origin + data.qrcode.link;
+  };
+
   return (
     <div className="staff-wrap">
       <header className="staff-head">
@@ -106,6 +116,28 @@ export default function StaffPage({ slug, token }: { slug: string; token: string
           <div className="stat"><b>{data.stats.seated_today}</b><span>seated today</span></div>
         </div>
       </header>
+
+      <section className="card qr-card">
+        <div className="qr-actions">
+          <div>
+            <h3 style={{ margin: 0 }}>Today's join QR</h3>
+            <p className="muted" style={{ margin: '4px 0 0' }}>{data.qrcode.date} · this code expires at midnight</p>
+          </div>
+          <button onClick={() => run(() => api.rotate(token))}>Regenerate code</button>
+        </div>
+        <div className="qr-body">
+          <img src={data.qrcode.qr_url} alt="Today's join QR code" width={200} height={200} />
+          <div>
+            <p className="muted">Print this and put it by the door. Scans open the customer queue page; yesterday's code is dead.</p>
+            <button
+              onClick={() => {
+                navigator.clipboard?.writeText(qrCopy());
+                setSave('Join link copied');
+              }}
+            >Copy join link</button>
+          </div>
+        </div>
+      </section>
 
       {save && <div className="notice error">{save}</div>}
 
@@ -139,7 +171,7 @@ export default function StaffPage({ slug, token }: { slug: string; token: string
             {settled.map((p) => (
               <div key={p.id} className={`party party-${p.status}`}>
                 <div className="party-info">
-                  <b>{p.name}</b>
+                  <b>{p.name}</b>{notifiedChip(p)}
                   <small>party of {p.pax} · joined {fmtTime(p.created_at)}</small>
                 </div>
                 <span className={`tag ${p.status}`}>{p.status}</span>
@@ -195,9 +227,10 @@ function PartyRow({ party, isFast, editing, onStartEdit, onCancelEdit, onSeat, o
     <div className={`party ${isFast ? 'fast' : ''}`}>
       <div className="party-info">
         <b>{party.name}</b>
-        {isFast && <span className="tag waiting">next up</span>}
+        {isFast && <span className="tag waiting">next up</span>}{notifiedChip(party)}
         <small>
           party of {party.pax} · joined {fmtTime(party.created_at)}
+          {contact(party) ? ` · ${contact(party)}` : ''}
           {party.note ? ` · “${party.note}”` : ''}
         </small>
       </div>
