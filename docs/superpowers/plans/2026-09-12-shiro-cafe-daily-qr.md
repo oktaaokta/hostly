@@ -1,6 +1,19 @@
 # Shiro Cafe + Contact + Daily QR Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **Status: COMPLETE** — all 8 tasks done, verified (`go vet`, `go test ./...`, `make frontend`, E2E on fresh DB: join 201/410/400, qr.png 200 PNG, rotate invalidates, absolute qr_url, notify log). Branch `daily-qr`
+> to merge into `main`.
+
+> **Implemented deviations (code is source of truth):**
+> - `memory_test.go` already existed (TestMemoryCRUD, TestVenueUpdateSlug) — new test added alongside, nothing deleted.
+> - No `domain.KeyOK`; `Join` compares `key != domain.DailyKey(ven.DailySecret, today)` directly (equivalent).
+> - Staff auth errors use the repo's `domain.ErrUnauthorized` (mapped to 401), not a new ErrForbidden.
+> - `Join` returns `*JoinResult` (existing type incl. `Ahead`), not `Party`.
+> - `StaffView(slug, token, origin string)` — origin from the handler (`scheme://host` + BASE_PATH via X-Forwarded-Proto); empty in unit tests.
+> - `notified_at` stored as `time.RFC3339Nano` (round-trips subsecond; still RFC3339-parseable), `created_at` unchanged.
+> - `QRPNG(slug, key, date, origin)` folds basePath into origin (no separate basePath arg).
+> - Handler ripple bit of Task 5’s scope was pulled into Task 4 (join body email/phone + k/d query) to keep the tree green.
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Rebrand the demo venue to Shiro Cafe, collect email/phone (at least one) at join, log a placeholder notification when staff seats a party, and gate the queue behind a token-gated daily QR shown on the staff dashboard.
 
@@ -25,7 +38,7 @@
 - Modify: `internal/domain/venue.go`
 - Modify: `internal/domain/party.go`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `internal/domain/daily_test.go`:
 ```go
@@ -91,12 +104,12 @@ func TestValidateContact(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `go test ./internal/domain/`
 Expected: FAIL (`undefined: DailyKey`, `undefined: GenerateSecret`, `undefined: ValidateContact`)
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `internal/domain/daily.go`:
 ```go
@@ -181,14 +194,14 @@ func validPhone(phone string) bool {
 	NotifiedAt *time.Time `json:"notified_at"`
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `go test ./internal/domain/`
 Expected: PASS
 
 (If the stray `if true` placeholder in contact.go worries you, delete it — it was a plan artifact. Do not ship it.)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add internal/domain/
@@ -205,7 +218,7 @@ git commit -m "feat: domain daily key, contact validation, party contact fields"
 - Modify: `internal/repository/sqlite_test.go`
 - Modify: `internal/repository/memory_test.go` (create if absent)
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `internal/repository/memory_test.go`:
 ```go
@@ -333,12 +346,12 @@ func TestSQLiteMigrationAddsColumnsAndBackfills(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `go test ./internal/repository/`
 Expected: FAIL (no `DailySecret`, missing columns in INSERT, etc.)
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `internal/repository/memory.go` — in `memoryVenueRepo.Create`, before assigning ID:
 ```go
@@ -510,12 +523,12 @@ const partyCols = "id, venue_id, name, pax, note, status, order_no, email, phone
 ```
 `Update` SQL adds email, phone, notified_at before created_at; params `p.Email, p.Phone, noted`.
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `go test ./internal/repository/`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add internal/repository/
@@ -530,7 +543,7 @@ git commit -m "feat: persist party contacts and venue daily secret with migratio
 - Create: `internal/notify/notify.go`
 - Create: `internal/notify/notify_test.go`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `internal/notify/notify_test.go`:
 ```go
@@ -569,12 +582,12 @@ func TestSendNoContactSilent(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `go test ./internal/notify/`
 Expected: FAIL (`undefined: Send`)
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `internal/notify/notify.go`:
 ```go
@@ -607,12 +620,12 @@ func Send(p *domain.Party) {
 }
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `go test ./internal/notify/`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add internal/notify/
@@ -627,7 +640,7 @@ git commit -m "feat: notify package logging placeholder on seat"
 - Modify: `internal/usecase/queue.go`
 - Modify: `internal/usecase/queue_test.go`
 
-- [ ] **Step 1: Write/update tests (TDD — update call sites first, then new behavior tests)**
+- [x] **Step 1: Write/update tests (TDD — update call sites first, then new behavior tests)**
 
 Add the new dependency for the QR render in this task:
 ```bash
@@ -793,12 +806,12 @@ func TestStaffViewHasQR(t *testing.T) {
 	}
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `go test ./internal/usecase/`
 Expected: FAIL (compile errors on old `Join` signature until implemented; then behavior failures)
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `internal/usecase/queue.go`:
 
@@ -965,12 +978,12 @@ func (q *Queue) QRPNG(slug, date, key, origin, basePath string) ([]byte, error) 
 }
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `go test ./internal/usecase/`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add internal/usecase/ go.mod go.sum
@@ -985,7 +998,7 @@ git commit -m "feat: gated join, seat notify, daily qr info and rotation"
 - Modify: `internal/handler/handler.go`
 - Modify: `internal/handler/handler_test.go`
 
-- [ ] **Step 1: Write/update tests**
+- [x] **Step 1: Write/update tests**
 
 `internal/handler/handler_test.go`:
 
@@ -1125,12 +1138,12 @@ func TestRotateQRNeedsToken(t *testing.T) {
 
 (d) `TestWebSocketBroadcast` and `TestStaffSeatFlow` join posts also need `joinQuery(ven)` + email.
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `go test ./internal/handler/`
 Expected: FAIL until implemented
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `internal/handler/handler.go`:
 
@@ -1232,12 +1245,12 @@ func (h *Handler) rotateQR(w http.ResponseWriter, r *http.Request) {
 }
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `go test ./internal/handler/ ./internal/usecase/ ./internal/repository/ ./internal/notify/ ./internal/domain/`
 Expected: ALL PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add internal/handler/
@@ -1255,7 +1268,7 @@ git commit -m "feat: join contact and daily key via http, qr png, rotate endpoin
 - Modify: `docs/superpowers/specs/2026-09-07-hostly-design.md`
 - Modify: `docs/superpowers/plans/2026-09-07-hostly-implementation.md`
 
-- [ ] **Step 1: main.go wiring + seed rename**
+- [x] **Step 1: main.go wiring + seed rename**
 
 - `seedVenue`:
 ```go
@@ -1275,11 +1288,11 @@ func seedVenue(vr domain.VenueRepository) {
 - `handler.New(q, handler.NewHub(), basePath)` (add the basePath arg).
 - The `"strings"` import in main.go stays (used by serveSPA/mime). `log.Printf` at startup unchanged.
 
-- [ ] **Step 2: Test string cleanup**
+- [x] **Step 2: Test string cleanup**
 
 `internal/domain/venue_test.go` line ~45: change `Slug: "joes-diner", Name: "Joe's"` to `Slug: "shiro-cafe", Name: "Shiro"`.
 
-- [ ] **Step 3: Docs**
+- [x] **Step 3: Docs**
 
 `README.md`:
 - Replace every `joes-diner` with `shiro-cafe` and "Joe's Diner" with "Shiro Cafe".
@@ -1312,12 +1325,12 @@ the cafe's timezone.
 
 `docs/superpowers/plans/2026-09-07-hostly-implementation.md`: replace every `joes-diner` with `shiro-cafe` and every "Joe's Diner" with "Shiro Cafe" (reader-facing strings only; leave the `cock/booth` example parties untouched).
 
-- [ ] **Step 4: Verify**
+- [x] **Step 4: Verify**
 
 Run: `go test ./... && go vet ./...`
 Expected: ALL PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add cmd/hostly internal/domain/venue_test.go README.md docs/
@@ -1334,7 +1347,7 @@ git commit -m "feat: seed shiro cafe, wire base path, document daily qr"
 - Modify: `web/src/StaffPage.tsx`
 - Modify: `web/src/styles.css`
 
-- [ ] **Step 1: api.ts**
+- [x] **Step 1: api.ts**
 
 ```ts
 export interface Party {
@@ -1386,7 +1399,7 @@ export interface StaffView {
   }
 ```
 
-- [ ] **Step 2: CustomerPage.tsx**
+- [x] **Step 2: CustomerPage.tsx**
 
 - Read the daily query once:
 ```ts
@@ -1438,7 +1451,7 @@ export interface StaffView {
 - stale-link import stays: the server 410 message ("this link only works on the day it was printed") surfaces in `formError` automatically.
 - The `useMemo` import needs adding to the React import line.
 
-- [ ] **Step 3: StaffPage.tsx**
+- [x] **Step 3: StaffPage.tsx**
 
 - Copy helper + QR panel. Add after the header block, before the `{save && ...}` line:
 ```tsx
@@ -1480,7 +1493,7 @@ after the `next up` tag, and enrich the `<small>`:
                   {p.notified_at && <span className="tag seated">Notified {fmtTime(p.notified_at)}</span>}
 ```
 
-- [ ] **Step 4: styles.css**
+- [x] **Step 4: styles.css**
 
 Add near the hours-card styles:
 ```css
@@ -1491,7 +1504,7 @@ Add near the hours-card styles:
 .qr-copy input { flex: 1; min-width: 0; font-size: 12px; padding: 10px 12px; }
 ```
 
-- [ ] **Step 5: Build**
+- [x] **Step 5: Build**
 
 Run: `cd web && npm run build`
 Expected: `tsc` clean + vite build succeeds (35+ modules, dist written)
@@ -1499,7 +1512,7 @@ Expected: `tsc` clean + vite build succeeds (35+ modules, dist written)
 Run: `cd /Users/okta/workspace/hostly/.worktrees/daily-qr && make frontend`
 Expected: web/dist copied into internal/webassets/dist
 
-- [ ] **Step 6: End-to-end smoke (fresh DB, single binary)**
+- [x] **Step 6: End-to-end smoke (fresh DB, single binary)**
 
 ```bash
 cd /Users/okta/workspace/hostly/.worktrees/daily-qr
@@ -1522,7 +1535,7 @@ curl -s "localhost:8080/api/venues/shiro-cafe/qr.png?d=$today&k=$key" -o /tmp/qr
 ```
 (sqlite3 CLI is macOS-built-in.)
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add web/
@@ -1536,7 +1549,7 @@ git commit -m "feat: contact fields in join, stale-link screen, staff qr panel"
 **Files:**
 - Modify: `docs/superpowers/plans/2026-09-12-shiro-cafe-daily-qr-design.md` (this plan — add an Implementation Notes section at the bottom noting: QR payload absolute via origin/basePath; `notify` on seat only; migration approach; `ErrStale`→410)
 
-- [ ] **Step 1: Sync deviations**
+- [x] **Step 1: Sync deviations**
 
 Append to the design doc an "Implementation notes" section listing:
 - `QRPNG` validates date/key with the same injected clock as `Join` (handlers can't see `Queue.now()`).
@@ -1544,7 +1557,7 @@ Append to the design doc an "Implementation notes" section listing:
 - `notify.Send` is called only after a successful seat persist.
 - Database continuity: `migrate()` ALTERs missing columns and backfills `daily_secret`.
 
-- [ ] **Step 2: Full verify**
+- [x] **Step 2: Full verify**
 
 Run: `go test ./... && go vet ./... && cd web && npm run build`
 Expected: ALL PASS
@@ -1552,7 +1565,7 @@ Expected: ALL PASS
 Run: `gofmt -l .`
 Expected: clean (no files listed)
 
-- [ ] **Step 3: Commit + push**
+- [x] **Step 3: Commit + push**
 
 ```bash
 git add docs/
